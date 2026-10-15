@@ -1,0 +1,2368 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" id="html-root">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>سباق الكرات - النسخة النهائية المطورة</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- FontAwesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Cairo Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            font-family: 'Cairo', sans-serif;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #05070d;
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .btn-glow {
+            box-shadow: 0 0 25px rgba(6, 182, 212, 0.5);
+            transition: all 0.2s ease;
+        }
+        .btn-glow:active {
+            transform: scale(0.95);
+        }
+        #start-screen {
+            background: radial-gradient(circle at center, rgba(15, 23, 42, 0.85) 0%, rgba(5, 7, 12, 0.95) 100%), 
+                        linear-gradient(to bottom, rgba(6, 182, 212, 0.1), rgba(168, 85, 247, 0.1));
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(6, 182, 212, 0.5);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-white overflow-hidden">
+
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- نافذة منبثقة مخصصة للتنبيهات -->
+    <div id="custom-alert-modal" class="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md hidden">
+        <div class="glass-panel p-6 rounded-3xl max-w-sm w-full text-center border-cyan-500/40 shadow-2xl relative overflow-hidden flex flex-col items-center">
+            <div id="custom-alert-icon" class="w-16 h-16 mx-auto mb-3 bg-cyan-500/20 rounded-2xl flex items-center justify-center text-3xl text-cyan-400 border border-cyan-500/40 shadow-[0_0_15px_rgba(6,182,212,0.4)]">
+                <i class="fa-solid fa-circle-info"></i>
+            </div>
+            <h3 id="custom-alert-title" class="text-xl font-black text-cyan-300 mb-1">تنبيه</h3>
+            <p id="custom-alert-message" class="text-gray-300 text-xs mb-6 leading-relaxed">رسالة التنبيه هنا...</p>
+            <button onclick="closeCustomAlert()" class="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-black text-xs rounded-xl btn-glow active:scale-95 transition cursor-pointer">
+                موافق
+            </button>
+        </div>
+    </div>
+
+    <!-- نافذة تأكيد الشراء -->
+    <div id="buy-confirmation-modal" class="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md hidden">
+        <div class="glass-panel p-6 rounded-3xl max-w-sm w-full text-center border-amber-500/40 shadow-2xl relative overflow-hidden flex flex-col items-center">
+            <div class="w-16 h-16 mx-auto mb-3 bg-amber-500/20 rounded-2xl flex items-center justify-center text-3xl text-amber-400 border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.4)]">
+                <i class="fa-solid fa-gem animate-bounce"></i>
+            </div>
+            <h3 class="text-xl font-black text-amber-300 mb-1" data-i18n="buy_confirm_title">تأكيد الشراء</h3>
+            <p id="buy-confirm-message" class="text-gray-300 text-xs mb-6 leading-relaxed" data-i18n="buy_confirm_desc">هل تريد شراء خريطة "المدينة" مقابل 10,000 جوهرة؟</p>
+            <div class="flex gap-2 w-full">
+                <button id="confirm-buy-btn" class="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 font-black text-xs rounded-xl active:scale-95 transition cursor-pointer shadow-lg" data-i18n="yes_buy">نعم، اشرِ الآن</button>
+                <button onclick="closeBuyConfirmation()" class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-gray-300 font-bold text-xs rounded-xl border border-white/10 active:scale-95 transition cursor-pointer" data-i18n="cancel">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HUD أثناء اللعب -->
+    <div id="hud" class="absolute inset-0 z-10 pointer-events-none p-4 flex flex-col justify-between hidden">
+        <div class="flex justify-between items-center w-full max-w-4xl mx-auto gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+                <div class="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-2 border-purple-500/30">
+                    <i class="fa-solid fa-bolt text-purple-400 text-base sm:text-lg"></i>
+                    <div>
+                        <div class="text-[9px] text-gray-400 font-semibold" data-i18n="speed">السرعة</div>
+                        <div id="hud-speed" class="text-sm sm:text-base font-black text-purple-300">1.0x</div>
+                    </div>
+                </div>
+
+                <div class="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-2 border-amber-500/30">
+                    <i class="fa-solid fa-gem text-amber-400 text-base sm:text-lg animate-bounce"></i>
+                    <div>
+                        <div class="text-[9px] text-gray-400 font-semibold" data-i18n="gems">الجواهر</div>
+                        <div id="hud-gems" class="text-sm sm:text-base font-black text-amber-300">0</div>
+                    </div>
+                </div>
+
+                <div id="active-powerups" class="flex items-center gap-2"></div>
+            </div>
+
+            <button id="hud-pause-btn" class="pointer-events-auto glass-panel w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center text-cyan-400 hover:text-white hover:bg-cyan-500/30 border-cyan-500/30 shadow-lg active:scale-95 transition cursor-pointer" title="إيقاف مؤقت">
+                <i class="fa-solid fa-pause text-base sm:text-lg"></i>
+            </button>
+        </div>
+
+        <div class="pointer-events-auto flex justify-between items-center w-full max-w-md mx-auto mb-6 px-4 md:hidden">
+            <button id="btn-left" class="w-20 h-20 rounded-full glass-panel active:bg-cyan-500/30 flex items-center justify-center text-3xl text-cyan-300 border-cyan-400/40 shadow-lg transition cursor-pointer">
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button id="btn-jump" class="w-16 h-16 rounded-full glass-panel active:bg-purple-500/30 flex items-center justify-center text-2xl text-purple-300 border-purple-400/40 shadow-lg transition cursor-pointer">
+                <i class="fa-solid fa-arrow-up"></i>
+            </button>
+            <button id="btn-right" class="w-20 h-20 rounded-full glass-panel active:bg-cyan-500/30 flex items-center justify-center text-3xl text-cyan-300 border-cyan-400/40 shadow-lg transition cursor-pointer">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- شاشة الإيقاف المؤقت -->
+    <div id="pause-screen" class="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md hidden">
+        <div class="glass-panel p-6 sm:p-8 rounded-3xl max-w-sm w-full text-center border-cyan-500/40 shadow-2xl relative overflow-hidden flex flex-col items-center">
+            <div class="w-16 h-16 mx-auto mb-3 bg-cyan-500/20 rounded-2xl flex items-center justify-center text-3xl text-cyan-400 border border-cyan-500/40">
+                <i class="fa-solid fa-pause"></i>
+            </div>
+            <h2 class="text-2xl font-black text-cyan-300 mb-1" data-i18n="pause_title">اللعبة متوقفة مؤقتاً</h2>
+            <p class="text-gray-400 text-xs mb-6" data-i18n="pause_desc">خذ استراحة ثم تابع السباق</p>
+
+            <div class="space-y-3 w-full">
+                <button id="resume-btn" class="w-full py-3.5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-black text-sm rounded-2xl btn-glow active:scale-95 transition shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+                    <span data-i18n="resume">متابعة اللعب</span> <i class="fa-solid fa-play text-xs"></i>
+                </button>
+                <button id="pause-restart-btn" class="w-full py-3 glass-panel border border-purple-500/30 text-purple-300 hover:text-white hover:bg-purple-500/20 font-bold text-xs rounded-2xl active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer">
+                    <span data-i18n="try_again">إعادة المحاولة</span> <i class="fa-solid fa-rotate-right"></i>
+                </button>
+                <button id="pause-home-btn" class="w-full py-3 glass-panel border border-red-500/30 text-red-400 hover:text-white hover:bg-red-500/20 font-bold text-xs rounded-2xl active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer">
+                    <span data-i18n="back_home">العودة للرئيسية</span> <i class="fa-solid fa-house"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- القائمة الرئيسية -->
+    <div id="start-screen" class="absolute inset-0 z-20 flex flex-col justify-between p-3 sm:p-5 backdrop-blur-md overflow-y-auto">
+        <div class="w-full max-w-md mx-auto flex justify-between items-center z-30 pt-1 gap-1.5">
+            <div onclick="openProfileEdit()" class="glass-panel px-2.5 py-1.5 rounded-2xl border border-cyan-500/40 flex items-center gap-2 shadow-xl cursor-pointer hover:bg-cyan-500/10 transition">
+                <div class="relative flex-shrink-0">
+                    <div id="user-avatar-container" class="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center text-white text-xs font-black overflow-hidden border-2 border-cyan-400/70 shadow-inner"></div>
+                    <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-slate-950"></div>
+                </div>
+                <div class="text-right max-w-[90px]">
+                    <div id="display-player-name" class="text-[11px] font-black text-cyan-300 truncate">Player</div>
+                    <div class="text-[8px] text-gray-400 truncate" data-i18n="edit_profile">تعديل البروفايل</div>
+                </div>
+            </div>
+
+            <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center gap-1 border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+                <span id="start-gems-display" class="text-xs font-black text-amber-300">0</span>
+                <i class="fa-solid fa-gem text-amber-400 text-xs"></i>
+            </div>
+        </div>
+
+        <div class="flex-1 flex items-center justify-center px-2 py-2">
+            <div class="glass-panel p-5 sm:p-6 rounded-3xl max-w-md w-full text-center border-cyan-500/40 shadow-2xl relative overflow-hidden flex flex-col items-center">
+                <div class="w-20 h-20 mx-auto mb-3 rounded-2xl overflow-hidden shadow-2xl border border-cyan-400/60 bg-gradient-to-tr from-cyan-600 via-slate-900 to-purple-600 flex items-center justify-center relative shadow-[0_0_20px_rgba(6,182,212,0.6)]">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-400 via-sky-300 to-purple-500 shadow-[inset_-3px_-3px_8px_rgba(0,0,0,0.6),0_0_15px_rgba(6,182,212,0.9)] animate-pulse"></div>
+                    <div class="absolute inset-1.5 border border-cyan-400/30 rounded-xl pointer-events-none"></div>
+                </div>
+
+                <h1 class="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-300 to-pink-400 mb-1" data-i18n="game_title">
+                    سباق الكرات
+                </h1>
+                <p class="text-gray-300 text-[11px] sm:text-xs mb-3 leading-relaxed" data-i18n="game_desc">انطلق بالكرة وركز في تفادي العقبات وزيادة جواهرك!</p>
+
+                <!-- زر اختيار الخريطة -->
+                <div onclick="openMapSelection()" class="w-full mb-3 glass-panel p-2.5 rounded-2xl border border-purple-500/40 flex justify-between items-center cursor-pointer hover:bg-purple-500/10 transition shadow-lg">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-300">
+                            <i class="fa-solid fa-map"></i>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[9px] text-gray-400" data-i18n="current_map_label">الخريطة الحالية:</div>
+                            <div id="current-map-name" class="text-xs font-black text-purple-300">كلاسيكي</div>
+                        </div>
+                    </div>
+                    <span class="text-xs font-bold text-cyan-400 flex items-center gap-1" data-i18n="change_map">تغيير <i class="fa-solid fa-chevron-left text-[10px]"></i></span>
+                </div>
+
+                <div class="w-full bg-slate-800/70 rounded-2xl p-2.5 mb-3 flex justify-between items-center border border-white/10 shadow-inner">
+                    <span class="text-gray-400 text-xs font-semibold flex items-center gap-2">
+                        <i class="fa-solid fa-trophy text-amber-400 text-sm"></i>
+                        <span data-i18n="highscore">أعلى نتيجة:</span>
+                    </span>
+                    <span id="start-highscore" class="text-base font-black text-amber-400">0</span>
+                </div>
+
+                <div class="w-full mb-3">
+                    <button id="start-btn" class="w-full py-3.5 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-500 text-white font-black text-base rounded-2xl btn-glow hover:opacity-90 active:scale-95 transition shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+                        <span data-i18n="start_game">ابدأ اللعب الآن</span> 
+                        <i class="fa-solid fa-play text-xs"></i>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5 w-full">
+                    <button id="open-daily-reward-btn" class="glass-panel py-3 px-3 rounded-2xl border border-amber-500/40 text-amber-300 hover:text-white hover:bg-amber-500/20 font-bold text-xs shadow-[0_0_15px_rgba(245,158,11,0.25)] active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer animate-pulse">
+                        <span data-i18n="daily_reward_btn">المكافأة اليومية</span>
+                        <i class="fa-solid fa-gift text-amber-400"></i>
+                    </button>
+
+                    <button id="open-shop-btn" class="glass-panel py-3 px-3 rounded-2xl border border-amber-500/40 text-amber-300 hover:text-white hover:bg-amber-500/20 font-bold text-xs shadow-[0_0_15px_rgba(245,158,11,0.25)] active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer">
+                        <span data-i18n="shop">المتجر</span>
+                        <i class="fa-solid fa-store text-amber-400"></i>
+                    </button>
+
+                    <button id="open-missions-btn" class="glass-panel py-3 px-3 rounded-2xl border border-cyan-500/30 text-cyan-300 hover:text-white hover:bg-cyan-500/20 font-bold text-xs shadow-lg active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer">
+                        <span data-i18n="missions">المهام</span>
+                        <i class="fa-solid fa-bullseye text-cyan-400"></i>
+                    </button>
+
+                    <button id="open-leaderboard-btn" class="glass-panel py-3 px-3 rounded-2xl border border-purple-500/30 text-purple-300 hover:text-white hover:bg-purple-500/20 font-bold text-xs shadow-[0_0_15px_rgba(168,85,247,0.25)] active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer">
+                        <span data-i18n="leaderboard">المتصدّرين</span>
+                        <i class="fa-solid fa-globe text-purple-400"></i>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5 w-full mt-2.5">
+                    <button id="open-skills-btn" class="w-full py-2.5 glass-panel rounded-2xl border border-emerald-500/30 text-emerald-300 hover:text-white hover:bg-emerald-500/20 font-bold text-xs shadow-lg active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer">
+                        <span data-i18n="skills">المهارات</span>
+                        <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
+                    </button>
+
+                    <button id="open-settings-btn" class="w-full py-2.5 glass-panel rounded-2xl border border-pink-500/30 text-pink-300 hover:text-white hover:bg-pink-500/20 font-bold text-xs shadow-lg active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer">
+                        <span data-i18n="settings">الإعدادات</span>
+                        <i class="fa-solid fa-gear text-pink-400"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full text-center text-[10px] text-gray-500 z-30 pb-1">
+            Ball Race 3D &copy; 2026 - جميع الحقوق محفوظة
+        </div>
+    </div>
+
+    <!-- نافذة اختيار الخريطة -->
+    <div id="map-selection-screen" class="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg hidden">
+        <div class="glass-panel p-5 sm:p-6 rounded-3xl max-w-sm w-full border-purple-500/40 shadow-2xl flex flex-col">
+            <div class="flex items-center gap-2 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-500 to-pink-600 flex items-center justify-center text-lg text-white">
+                    <i class="fa-solid fa-map"></i>
+                </div>
+                <div class="text-right">
+                    <h2 class="text-lg font-black text-purple-300" data-i18n="map_select_title">اختر خريطة السباق</h2>
+                    <p class="text-[10px] text-gray-400" data-i18n="map_select_desc">اختر العالم الذي تفضل اللعب فيه</p>
+                </div>
+            </div>
+
+            <div class="space-y-3 mb-4" id="maps-list-container">
+                <div onclick="selectMap('classic')" id="map-card-classic" class="p-3 rounded-2xl border transition cursor-pointer flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-slate-700 to-blue-900 flex items-center justify-center text-xl text-cyan-400 border border-white/20">
+                            <i class="fa-solid fa-road"></i>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs font-bold text-white" data-i18n="map_classic_name">كلاسيكي</div>
+                            <div class="text-[10px] text-green-400 font-bold" data-i18n="free">مجاني (Free)</div>
+                        </div>
+                    </div>
+                    <div id="map-check-classic" class="w-6 h-6 rounded-full border border-white/30 flex items-center justify-center text-xs"></div>
+                </div>
+
+                <div onclick="selectMap('city')" id="map-card-city" class="p-3 rounded-2xl border transition cursor-pointer flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-600 via-orange-700 to-slate-900 flex items-center justify-center text-xl text-amber-300 border border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.4)]">
+                            <i class="fa-solid fa-city"></i>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs font-bold text-amber-300" data-i18n="map_city_name">المدينة</div>
+                            <div id="city-price-label" class="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-gem"></i> 10,000 جوهرة
+                            </div>
+                        </div>
+                    </div>
+                    <div id="map-check-city" class="w-6 h-6 rounded-full border border-white/30 flex items-center justify-center text-xs"></div>
+                </div>
+            </div>
+
+            <button onclick="closeMapSelection()" class="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xs rounded-xl active:scale-95 transition cursor-pointer" data-i18n="confirm">تأكيد واختيار</button>
+        </div>
+    </div>
+
+    <!-- نافذة تعديل البروفايل -->
+    <div id="profile-screen" class="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg hidden">
+        <div class="glass-panel p-5 sm:p-6 rounded-3xl max-w-sm w-full border-cyan-500/40 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex items-center gap-2 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center text-lg text-white">
+                    <i class="fa-solid fa-user-pen"></i>
+                </div>
+                <div class="text-right">
+                    <h2 class="text-lg font-black text-cyan-300" data-i18n="profile_title">الملف الشخصي</h2>
+                    <p class="text-[10px] text-gray-400" data-i18n="profile_desc">تخصيص اسم اللاعب واختيار كرة البروفايل</p>
+                </div>
+            </div>
+
+            <div class="space-y-3 bg-slate-900/70 p-4 rounded-2xl border border-white/10 mb-4 overflow-y-auto max-h-[50vh]">
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1.5 text-right" data-i18n="player_name_label">اسم اللاعب:</label>
+                    <input type="text" id="profile-name-input" maxlength="15" class="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 text-right">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-2 text-right" data-i18n="avatar_select_label">اختر كرة البروفايل:</label>
+                    <div class="grid grid-cols-3 gap-2.5" id="avatar-ball-selection-grid"></div>
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="saveProfile()" class="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-bold text-xs rounded-xl active:scale-95 transition cursor-pointer" data-i18n="save">حفظ</button>
+                <button onclick="closeProfileEdit()" class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-gray-300 font-bold text-xs rounded-xl border border-white/10 active:scale-95 transition cursor-pointer" data-i18n="cancel">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة المكافأة اليومية -->
+    <div id="daily-reward-screen" class="absolute inset-0 z-30 flex items-center justify-center p-3 bg-slate-950/90 backdrop-blur-lg hidden">
+        <div class="glass-panel p-4 sm:p-5 rounded-3xl max-w-sm w-full border-amber-500/40 shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto">
+            <div class="text-center mb-3">
+                <div class="w-12 h-12 mx-auto mb-1.5 bg-gradient-to-tr from-amber-500 to-orange-500 rounded-2xl flex items-center justify-center text-xl text-white shadow-[0_0_20px_rgba(245,158,11,0.5)]">
+                    <i class="fa-solid fa-gift"></i>
+                </div>
+                <h2 class="text-xl font-black text-amber-400" data-i18n="dr_title">المكافأة اليومية</h2>
+                <p class="text-[10px] text-gray-400 mt-0.5" data-i18n="dr_desc">عد كل يوم واجمع الجوائز والكرة الذهبية في اليوم 7!</p>
+            </div>
+
+            <div id="daily-reward-grid" class="grid grid-cols-3 gap-2 mb-3"></div>
+
+            <div id="day-7-card" class="p-3 rounded-2xl border border-amber-500/60 bg-gradient-to-r from-amber-950/40 to-slate-900/80 mb-3 relative overflow-hidden flex items-center justify-between shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                <div class="text-right flex-1 pl-2">
+                    <span class="inline-block px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[9px] font-bold border border-amber-500/30 mb-1">كرة أسطورية حصرية</span>
+                    <div class="text-xs font-black text-white">الكرة الذهبية مجاناً + صورة بروفايل!</div>
+                    <div class="text-[10px] text-amber-400 font-bold mt-0.5 flex items-center gap-1">
+                        <i class="fa-solid fa-gem text-amber-400"></i> +200 جوهرة إضافية
+                    </div>
+                </div>
+                <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-300 via-yellow-400 to-amber-700 flex items-center justify-center shadow-[inset_-6px_-6px_14px_rgba(0,0,0,0.8),0_0_25px_rgba(245,158,11,0.95)] border-2 border-amber-200 flex-shrink-0 animate-pulse relative overflow-hidden">
+                    <div class="absolute w-4 h-4 bg-white/90 rounded-full top-2 left-1.5 blur-[0.5px]"></div>
+                    <div class="absolute inset-0 bg-[radial-gradient(circle_at_35%_35%,rgba(255,255,255,0.5),transparent_70%)]"></div>
+                </div>
+            </div>
+
+            <button id="claim-daily-btn" onclick="claimDailyReward()" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-white/10 active:scale-95 transition cursor-pointer mb-2">
+                <span data-i18n="dr_claim">لقد استلمت مكافأة اليوم بالفعل!</span>
+            </button>
+
+            <button id="close-daily-btn" class="w-full py-2.5 bg-slate-900/80 hover:bg-slate-800 text-gray-300 font-bold text-xs rounded-xl border border-white/5 active:scale-95 transition cursor-pointer">
+                <span data-i18n="back_home">العودة للرئيسية</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- نافذة تطوير المهارات -->
+    <div id="skills-screen" class="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg hidden">
+        <div class="glass-panel p-5 sm:p-6 rounded-3xl max-w-md w-full border-emerald-500/40 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-600 flex items-center justify-center text-lg text-white">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <div class="text-right">
+                        <h2 class="text-lg font-black text-emerald-300" data-i18n="skills_title">تطوير المهارات</h2>
+                        <p class="text-[10px] text-gray-400" data-i18n="skills_desc">طور قدراتك الخاصة باستخدام الجواهر</p>
+                    </div>
+                </div>
+                <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center gap-1.5 border-amber-500/30">
+                    <i class="fa-solid fa-gem text-amber-400 text-sm"></i>
+                    <span id="skills-gems-display" class="text-sm font-bold text-amber-300">0</span>
+                </div>
+            </div>
+            <div id="skills-container" class="space-y-3 overflow-y-auto p-1 flex-1 bg-slate-900/70 rounded-2xl border border-white/10 max-h-[55vh]"></div>
+            <button id="close-skills-btn" class="w-full mt-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-xl border border-white/10 active:scale-95 transition cursor-pointer">
+                <span data-i18n="back_home">العودة للرئيسية</span> <i class="fa-solid fa-arrow-left mr-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- متجر الكرات -->
+    <div id="store-screen" class="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg hidden">
+        <div class="glass-panel p-5 sm:p-6 rounded-3xl max-w-md w-full border-cyan-500/40 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center text-lg text-white">
+                        <i class="fa-solid fa-store"></i>
+                    </div>
+                    <div class="text-right">
+                        <h2 class="text-lg font-black text-cyan-300" data-i18n="store_title">متجر الكرات</h2>
+                        <p class="text-[10px] text-gray-400" data-i18n="store_desc">اختر الكرة المناسبة لك</p>
+                    </div>
+                </div>
+                <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center gap-1.5 border-amber-500/30">
+                    <i class="fa-solid fa-gem text-amber-400 text-sm"></i>
+                    <span id="store-gems-display" class="text-sm font-bold text-amber-300">0</span>
+                </div>
+            </div>
+            <div id="skins-container" class="space-y-2.5 overflow-y-auto p-1 flex-1 bg-slate-900/70 rounded-2xl border border-white/10 max-h-[55vh]"></div>
+            <button id="close-shop-btn" class="w-full mt-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-xl border border-white/10 active:scale-95 transition cursor-pointer">
+                <span data-i18n="back_home">العودة للرئيسية</span> <i class="fa-solid fa-arrow-left mr-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- نافذة المهام -->
+    <div id="missions-screen" class="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg hidden">
+        <div class="glass-panel p-5 sm:p-6 rounded-3xl max-w-md w-full border-cyan-500/40 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-lg text-white">
+                        <i class="fa-solid fa-bullseye"></i>
+                    </div>
+                    <div class="text-right">
+                        <h2 class="text-lg font-black text-cyan-300" data-i18n="missions_title">المهام والإنجازات</h2>
+                        <p class="text-[10px] text-gray-400" data-i18n="missions_desc">مهام يومية وتحديات (سهلة وصعبة) لكل خريطة</p>
+                    </div>
+                </div>
+                <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center gap-1.5 border-amber-500/30">
+                    <i class="fa-solid fa-gem text-amber-400 text-sm"></i>
+                    <span id="missions-gems-display" class="text-sm font-bold text-amber-300">0</span>
+                </div>
+            </div>
+            
+            <!-- أزرار تبديل الأقسام الثلاثة -->
+            <div class="grid grid-cols-3 gap-1.5 mb-3">
+                <button id="tab-mission-daily" onclick="switchMissionTab('daily')" class="py-2 px-1 text-[11px] font-bold rounded-xl bg-cyan-500 text-slate-950 transition cursor-pointer text-center" data-i18n="daily_tab">يومية</button>
+                <button id="tab-mission-classic" onclick="switchMissionTab('classic')" class="py-2 px-1 text-[11px] font-bold rounded-xl bg-slate-800 text-gray-300 hover:bg-slate-700 transition cursor-pointer text-center" data-i18n="map_classic_name">كلاسيكي (30)</button>
+                <button id="tab-mission-city" onclick="switchMissionTab('city')" class="py-2 px-1 text-[11px] font-bold rounded-xl bg-slate-800 text-gray-300 hover:bg-slate-700 transition cursor-pointer text-center" data-i18n="map_city_name">المدينة (30)</button>
+            </div>
+
+            <div id="missions-container" class="space-y-3 overflow-y-auto p-1 flex-1 bg-slate-900/70 rounded-2xl border border-white/10 max-h-[50vh]"></div>
+            
+            <button id="close-missions-btn" class="w-full mt-3 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-xl border border-white/10 active:scale-95 transition cursor-pointer">
+                <span data-i18n="back_home">العودة للرئيسية</span> <i class="fa-solid fa-arrow-left mr-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- نافذة الإعدادات -->
+    <div id="settings-screen" class="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg hidden">
+        <div class="glass-panel p-5 sm:p-6 rounded-3xl max-w-md w-full border-pink-500/40 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center gap-2 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-lg text-white shadow-[0_0_15px_rgba(236,72,153,0.4)]">
+                    <i class="fa-solid fa-gear"></i>
+                </div>
+                <div class="text-right">
+                    <h2 class="text-lg font-black text-pink-300" data-i18n="settings_title">إعدادات اللعبة</h2>
+                    <p class="text-[10px] text-gray-400" data-i18n="settings_desc">تخصيص اللغة والصوت والرسوميات والتحكم</p>
+                </div>
+            </div>
+
+            <div class="space-y-4 bg-slate-900/70 p-4 rounded-2xl border border-white/10 mb-4">
+                <div>
+                    <div class="text-xs font-bold text-gray-200 mb-2 flex items-center gap-1.5">
+                        <i class="fa-solid fa-globe text-pink-400"></i>
+                        <span data-i18n="setting_language">لغة اللعبة (Language)</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="changeLanguage('ar')" id="lang-btn-ar" class="py-2 px-2 rounded-xl text-xs font-bold transition border cursor-pointer text-center">العربية</button>
+                        <button onclick="changeLanguage('en')" id="lang-btn-en" class="py-2 px-2 rounded-xl text-xs font-bold transition border cursor-pointer text-center">English</button>
+                        <button onclick="changeLanguage('fr')" id="lang-btn-fr" class="py-2 px-2 rounded-xl text-xs font-bold transition border cursor-pointer text-center">Français</button>
+                        <button onclick="changeLanguage('es')" id="lang-btn-es" class="py-2 px-2 rounded-xl text-xs font-bold transition border cursor-pointer text-center">Español</button>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center border-t border-white/5 pt-3">
+                    <span class="text-xs font-bold text-gray-200" data-i18n="setting_sound">المؤثرات الصوتية (SFX)</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="setting-sound-toggle" class="sr-only peer" checked onchange="toggleSound(this.checked)">
+                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-500"></div>
+                    </label>
+                </div>
+
+                <div class="border-t border-white/5 pt-3">
+                    <div class="text-xs font-bold text-gray-200 mb-2" data-i18n="setting_graphics">جودة الرسوميات</div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="changeGraphicsOption('high')" id="gfx-high" class="py-2.5 px-2 rounded-xl text-xs font-bold transition border cursor-pointer text-center">عالية (High)</button>
+                        <button onclick="changeGraphicsOption('medium')" id="gfx-medium" class="py-2.5 px-2 rounded-xl text-xs font-bold transition border cursor-pointer text-center">متوسطة (Med)</button>
+                        <button onclick="changeGraphicsOption('low')" id="gfx-low" class="py-2.5 px-2 rounded-xl text-xs font-bold transition border cursor-pointer text-center">منخفضة (Low)</button>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-1.5 border-t border-white/5 pt-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-gray-200" data-i18n="setting_sensitivity">حساسية اللمس/الحركة</span>
+                        <span id="sensitivity-value" class="text-xs font-bold text-pink-400">1.0x</span>
+                    </div>
+                    <input type="range" id="setting-sensitivity-range" min="0.5" max="2.0" step="0.1" value="1.0" oninput="changeSensitivity(this.value)" class="w-full accent-pink-500 cursor-pointer">
+                </div>
+
+                <!-- زر تغيير الحساب أو تسجيل الخروج -->
+                <div class="border-t border-white/5 pt-3">
+                    <button onclick="logoutOrChangeAccount()" class="w-full py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold text-xs rounded-xl border border-red-500/40 active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                        <span data-i18n="logout_account">تسجيل الخروج / تغيير الحساب</span>
+                    </button>
+                </div>
+            </div>
+
+            <button id="close-settings-btn" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-xl border border-white/10 active:scale-95 transition cursor-pointer">
+                <span data-i18n="back_home">العودة للرئيسية</span> <i class="fa-solid fa-arrow-left mr-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- لوحة المتصدرين أونلاين -->
+    <div id="leaderboard-screen" class="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg hidden">
+        <div class="glass-panel p-5 sm:p-6 rounded-3xl max-w-md w-full border-purple-500/40 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-500 to-pink-600 flex items-center justify-center text-lg text-white">
+                        <i class="fa-solid fa-globe"></i>
+                    </div>
+                    <div class="text-right">
+                        <h2 class="text-lg font-black text-purple-300" data-i18n="lb_title">لوحة المتصدرين أونلاين</h2>
+                        <p class="text-[10px] text-gray-400" data-i18n="lb_desc">أفضل اللاعبين حول العالم</p>
+                    </div>
+                </div>
+                <button onclick="fetchLeaderboard()" class="glass-panel px-3 py-1.5 rounded-xl text-cyan-400 hover:text-white text-xs font-bold border-cyan-500/30 flex items-center gap-1 active:scale-95 transition cursor-pointer">
+                    <i class="fa-solid fa-rotate"></i> <span data-i18n="refresh">تحديث</span>
+                </button>
+            </div>
+            <div id="leaderboard-container" class="space-y-2.5 overflow-y-auto p-1 flex-1 bg-slate-900/70 rounded-2xl border border-white/10 max-h-[55vh]">
+                <div class="text-center text-gray-400 text-xs py-10" data-i18n="loading">جاري تحميل النتائج...</div>
+            </div>
+            <button id="close-leaderboard-btn" class="w-full mt-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-xl border border-white/10 active:scale-95 transition cursor-pointer">
+                <span data-i18n="back_home">العودة للرئيسية</span> <i class="fa-solid fa-arrow-left mr-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- شاشة نهاية اللعبة -->
+    <div id="game-over-screen" class="absolute inset-0 z-20 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md hidden">
+        <div class="glass-panel p-6 sm:p-8 rounded-3xl max-w-md w-full text-center border-red-500/30 shadow-2xl relative overflow-hidden">
+            <div class="w-16 h-16 mx-auto mb-3 bg-red-500/20 rounded-2xl flex items-center justify-center text-3xl text-red-400 border border-red-500/30">
+                <i class="fa-solid fa-burst"></i>
+            </div>
+
+            <h2 class="text-2xl sm:text-3xl font-black text-red-400 mb-1" data-i18n="gameover_title">انتهت اللعبة!</h2>
+            <p class="text-gray-400 text-xs sm:text-sm mb-3" data-i18n="gameover_desc">حاول مرة أخرى لتحطيم رقمك القياسي</p>
+
+            <div class="space-y-2 mb-4">
+                <div class="bg-slate-800/60 rounded-xl p-2.5 flex justify-between items-center border border-white/5">
+                    <span class="text-gray-400 text-xs sm:text-sm"><i class="fa-solid fa-flag-checkered ml-2 text-cyan-400"></i><span data-i18n="score">النتيجة:</span></span>
+                    <span id="final-score" class="text-xl sm:text-2xl font-black text-cyan-400">0</span>
+                </div>
+                <div class="bg-slate-800/60 rounded-xl p-2.5 flex justify-between items-center border border-white/5">
+                    <span class="text-gray-400 text-xs sm:text-sm"><i class="fa-solid fa-gem ml-2 text-amber-400"></i><span data-i18n="gems_collected">الجواهر المجمعة:</span></span>
+                    <span id="final-gems" class="text-lg sm:text-xl font-bold text-amber-400">0</span>
+                </div>
+            </div>
+
+            <div id="score-submit-box" class="mb-4 bg-slate-900/80 p-3 rounded-2xl border border-purple-500/30 hidden">
+                <p class="text-xs text-purple-300 font-bold mb-2" data-i18n="new_highscore_msg">🎉 رقم قياسي جديد! أرسل نتيجة لوحة المتصدرين:</p>
+                <div class="flex gap-2">
+                    <input type="text" id="player-name-input" placeholder="ادخل اسمك المستعار..." maxlength="15" class="flex-1 bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-400 text-right">
+                    <button onclick="submitScoreOnline()" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl active:scale-95 transition cursor-pointer" data-i18n="send">إرسال</button>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button id="restart-btn" class="flex-1 py-3.5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-black text-base sm:text-lg rounded-xl btn-glow hover:opacity-90 active:scale-95 transition cursor-pointer">
+                    <span data-i18n="try_again">إعادة المحاولة</span> <i class="fa-solid fa-rotate-right mr-2"></i>
+                </button>
+                <button id="gameover-home-btn" class="px-4 py-3.5 glass-panel text-red-400 hover:text-white hover:bg-red-500/30 border-red-500/30 font-black rounded-xl shadow-lg active:scale-95 transition cursor-pointer" title="الرئيسية">
+                    <i class="fa-solid fa-house text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showCustomAlert(title, message, iconClass = 'fa-circle-info', colorTheme = 'text-cyan-400') {
+            document.getElementById('custom-alert-title').textContent = title;
+            document.getElementById('custom-alert-message').textContent = message;
+            const iconContainer = document.getElementById('custom-alert-icon');
+            iconContainer.className = `w-16 h-16 mx-auto mb-3 rounded-2xl flex items-center justify-center text-3xl ${colorTheme} border border-cyan-500/40 shadow-[0_0_15px_rgba(6,182,212,0.4)] bg-slate-900/80`;
+            iconContainer.innerHTML = `<i class="fa-solid ${iconClass}"></i>`;
+            document.getElementById('custom-alert-modal').classList.remove('hidden');
+        }
+
+        function closeCustomAlert() {
+            document.getElementById('custom-alert-modal').classList.add('hidden');
+        }
+
+        function closeBuyConfirmation() {
+            document.getElementById('buy-confirmation-modal').classList.add('hidden');
+        }
+
+        let gameSettings = JSON.parse(localStorage.getItem('runner_settings')) || {
+            soundEnabled: true,
+            graphicsQuality: 'high',
+            sensitivity: 1.0
+        };
+
+        let playerProfile = JSON.parse(localStorage.getItem('runner_player_profile')) || {
+            name: 'Player',
+            avatarBall: 'steel_ball'
+        };
+
+        function logoutOrChangeAccount() {
+            localStorage.removeItem('runner_player_profile');
+            localStorage.removeItem('runner_total_gems');
+            localStorage.removeItem('runner_3d_highscore');
+            localStorage.removeItem('runner_unlocked_skins');
+            localStorage.removeItem('runner_selected_skin');
+            localStorage.removeItem('runner_player_skills');
+            localStorage.removeItem('runner_daily_missions');
+            localStorage.removeItem('runner_30_map_missions');
+            localStorage.removeItem('runner_unlocked_maps');
+            localStorage.removeItem('runner_current_map');
+            localStorage.removeItem('runner_daily_reward');
+
+            playerProfile = { name: 'Player', avatarBall: 'steel_ball' };
+            totalOwnedGems = 0;
+            highScore = 0;
+            currentSkinId = 'steel_ball';
+            unlockedSkins = ['steel_ball'];
+            currentMapId = 'classic';
+            unlockedMaps = ['classic'];
+            
+            updateProfileUI();
+            document.getElementById('start-gems-display').textContent = '0';
+            document.getElementById('start-highscore').textContent = '0';
+            document.getElementById('settings-screen').classList.add('hidden');
+            
+            openProfileEdit();
+            
+            showCustomAlert(
+                currentLang === 'ar' ? 'تسجيل الخروج' : 'Signed Out',
+                currentLang === 'ar' ? 'تم تسجيل الخروج ومسح جميع بيانات الحساب بنجاح. ابدأ الآن كلاعب جديد!' : 'Signed out and cleared all account data successfully. Start fresh!',
+                'fa-right-from-bracket',
+                'text-red-400'
+            );
+        }
+
+        let currentMapId = localStorage.getItem('runner_current_map') || 'classic';
+        let unlockedMaps = JSON.parse(localStorage.getItem('runner_unlocked_maps')) || ['classic'];
+
+        function openMapSelection() {
+            updateMapSelectionUI();
+            document.getElementById('map-selection-screen').classList.remove('hidden');
+        }
+
+        function closeMapSelection() {
+            document.getElementById('map-selection-screen').classList.add('hidden');
+            updateMapDisplayLabel();
+        }
+
+        function selectMap(mapId) {
+            if (mapId === 'city' && !unlockedMaps.includes('city')) {
+                document.getElementById('buy-confirmation-modal').classList.remove('hidden');
+                return;
+            }
+
+            currentMapId = mapId;
+            localStorage.setItem('runner_current_map', currentMapId);
+            updateMapSelectionUI();
+            updateMapDisplayLabel();
+            rebuildMapEnvironment();
+        }
+
+        function confirmCityMapPurchase() {
+            closeBuyConfirmation();
+            if (totalOwnedGems >= 10000) {
+                totalOwnedGems -= 10000;
+                localStorage.setItem('runner_total_gems', totalOwnedGems);
+                unlockedMaps.push('city');
+                localStorage.setItem('runner_unlocked_maps', JSON.stringify(unlockedMaps));
+                document.getElementById('start-gems-display').textContent = totalOwnedGems;
+                AudioFX.playPowerup();
+                showCustomAlert(
+                    currentLang === 'ar' ? 'مبروك!' : 'Success!',
+                    currentLang === 'ar' ? '🎉 تم شراء وفتح خريطة "المدينة" بنجاح!' : '🎉 City map purchased and unlocked successfully!',
+                    'fa-city',
+                    'text-amber-400'
+                );
+                currentMapId = 'city';
+                localStorage.setItem('runner_current_map', currentMapId);
+                updateMapSelectionUI();
+                updateMapDisplayLabel();
+                rebuildMapEnvironment();
+            } else {
+                showCustomAlert(
+                    currentLang === 'ar' ? 'جواهر غير كافية' : 'Not Enough Gems',
+                    currentLang === 'ar' ? 'تحتاج إلى 10,000 جوهرة لفتح خريطة المدينة!' : 'You need 10,000 gems to unlock the city map!',
+                    'fa-gem',
+                    'text-amber-400'
+                );
+            }
+        }
+
+        function updateMapSelectionUI() {
+            const classicCard = document.getElementById('map-card-classic');
+            const cityCard = document.getElementById('map-card-city');
+            const cityPriceLabel = document.getElementById('city-price-label');
+            
+            const checkClassic = document.getElementById('map-check-classic');
+            const checkCity = document.getElementById('map-check-city');
+
+            [classicCard, cityCard].forEach(c => c.className = "p-3 rounded-2xl border transition cursor-pointer flex items-center justify-between bg-slate-800/60 border-white/10 hover:border-white/30");
+            [checkClassic, checkCity].forEach(chk => { chk.className = "w-6 h-6 rounded-full border border-white/30 flex items-center justify-center text-xs"; chk.innerHTML = ''; });
+
+            if (unlockedMaps.includes('city')) {
+                cityPriceLabel.innerHTML = `<span class="text-green-400 font-bold">${currentLang === 'ar' ? 'ممتلك (Owned)' : 'Owned'}</span>`;
+            } else {
+                cityPriceLabel.innerHTML = `<i class="fa-solid fa-gem text-amber-400"></i> 10,000 جوهرة`;
+            }
+
+            if (currentMapId === 'classic') {
+                classicCard.className = "p-3 rounded-2xl border transition cursor-pointer flex items-center justify-between bg-purple-500/25 border-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.3)]";
+                checkClassic.className = "w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center text-xs shadow";
+                checkClassic.innerHTML = '<i class="fa-solid fa-check"></i>';
+            } else {
+                cityCard.className = "p-3 rounded-2xl border transition cursor-pointer flex items-center justify-between bg-amber-500/25 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)]";
+                checkCity.className = "w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs shadow";
+                checkCity.innerHTML = '<i class="fa-solid fa-check"></i>';
+            }
+        }
+
+        function updateMapDisplayLabel() {
+            const label = document.getElementById('current-map-name');
+            if (currentMapId === 'classic') {
+                label.textContent = currentLang === 'ar' ? 'كلاسيكي' : 'Classic';
+            } else {
+                label.textContent = currentLang === 'ar' ? 'المدينة' : 'City';
+            }
+        }
+
+        function getUTCDateString() {
+            const now = new Date();
+            const year = now.getUTCFullYear();
+            const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(now.getUTCDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function generateDailyMissionsForDate(dateStr) {
+            let seed = 0;
+            for (let i = 0; i < dateStr.length; i++) {
+                seed += dateStr.charCodeAt(i) * (i + 1);
+            }
+            
+            let gemPools = [
+                { target: 20, reward: 35, type: 'gems_round', title: `اجمع ${20} جوهرة في جولة واحدة` },
+                { target: 35, reward: 55, type: 'gems_round', title: `اجمع ${35} جوهرة في جولة واحدة` },
+                { target: 50, reward: 80, type: 'gems_round', title: `اجمع ${50} جوهرة في جولة واحدة` }
+            ];
+
+            let scorePools = [
+                { target: 400, reward: 50, type: 'score_round', title: `حقق ${400} نقطة في جولة واحدة` },
+                { target: 800, reward: 90, type: 'score_round', title: `حقق ${800} نقطة في جولة واحدة` },
+                { target: 1500, reward: 140, type: 'score_round', title: `حقق ${1500} نقطة في جولة واحدة` }
+            ];
+
+            let racesPools = [
+                { target: 3, reward: 40, type: 'races', title: `أكمل ${3} سباقات اليوم` },
+                { target: 6, reward: 75, type: 'races', title: `أكمل ${6} سباقات اليوم` },
+                { target: 10, reward: 120, type: 'races', title: `أكمل ${10} سباقات اليوم` }
+            ];
+
+            let totalGemsPools = [
+                { target: 50, reward: 65, type: 'gems_total', title: `اجمع ${50} جوهرة إجمالية اليوم` },
+                { target: 100, reward: 110, type: 'gems_total', title: `اجمع ${100} جوهرة إجمالية اليوم` },
+                { target: 180, reward: 180, type: 'gems_total', title: `اجمع ${180} جوهرة إجمالية اليوم` }
+            ];
+
+            let highscorePools = [
+                { target: 1000, reward: 100, type: 'score_total', title: `بلغ نتيجة ${1000} نقطة إجمالية اليوم` },
+                { target: 2500, reward: 200, type: 'score_total', title: `بلغ نتيجة ${2500} نقطة إجمالية اليوم` }
+            ];
+
+            let pick1 = gemPools[seed % gemPools.length];
+            let pick2 = scorePools[(seed * 3) % scorePools.length];
+            let pick3 = racesPools[(seed * 7) % racesPools.length];
+            let pick4 = totalGemsPools[(seed * 11) % totalGemsPools.length];
+            let pick5 = highscorePools[(seed * 13) % highscorePools.length];
+
+            return [
+                { id: 'd_1', title: pick1.title, target: pick1.target, progress: 0, reward: pick1.reward, completed: false, type: pick1.type },
+                { id: 'd_2', title: pick2.title, target: pick2.target, progress: 0, reward: pick2.reward, completed: false, type: pick2.type },
+                { id: 'd_3', title: pick3.title, target: pick3.target, progress: 0, reward: pick3.reward, completed: false, type: pick3.type },
+                { id: 'd_4', title: pick4.title, target: pick4.target, progress: 0, reward: pick4.reward, completed: false, type: pick4.type },
+                { id: 'd_5', title: pick5.title, target: pick5.target, progress: 0, reward: pick5.reward, completed: false, type: pick5.type }
+            ];
+        }
+
+        function generateGraduated30MapMissions(mapPrefix, mapDisplayName) {
+            let list = [];
+            for (let i = 1; i <= 30; i++) {
+                let diffLabel = "";
+                let target = 0;
+                let reward = i * 30;
+                let type = (i % 2 === 0) ? 'score_round' : 'gems_round';
+
+                if (i <= 10) {
+                    diffLabel = currentLang === 'ar' ? '🟢 (سهل)' : '🟢 (Easy)';
+                    target = i * 35;
+                } else if (i <= 20) {
+                    diffLabel = currentLang === 'ar' ? '🟡 (متوسط)' : '🟡 (Medium)';
+                    target = 350 + (i - 10) * 120;
+                } else {
+                    diffLabel = currentLang === 'ar' ? '🔴 (صعب وتحدي)' : '🔴 (Hard)';
+                    target = 1600 + (i - 20) * 450;
+                }
+
+                let title = (type === 'score_round') 
+                    ? `مهمة ${i} ${diffLabel}: تحقيق ${target} نقطة في خريطة ${mapDisplayName}` 
+                    : `مهمة ${i} ${diffLabel}: جمع ${Math.round(target/4)} جوهرة في خريطة ${mapDisplayName}`;
+
+                list.push({
+                    id: `${mapPrefix}_m_${i}`,
+                    title: title,
+                    target: (type === 'score_round') ? target : Math.round(target/4),
+                    progress: 0,
+                    reward: reward,
+                    completed: false,
+                    type: type
+                });
+            }
+            return list;
+        }
+
+        let dailyRewardData = JSON.parse(localStorage.getItem('runner_daily_reward')) || {
+            lastClaimDate: '',
+            streakDay: 0
+        };
+
+        const REWARD_AMOUNTS = [100, 200, 300, 400, 500, 600];
+
+        const TRANSLATIONS = {
+            ar: {
+                gems: "الجواهر", speed: "السرعة", shop: "المتجر", skills: "تطوير المهارات", missions: "المهام", leaderboard: "المتصدّرين", settings: "الإعدادات",
+                game_title: "سباق الكرات", game_desc: "انطلق بالكرة وركز في تفادي العقبات وزيادة جواهرك!",
+                highscore: "أعلى نتيجة:", start_game: "ابدأ اللعب الآن", store_title: "متجر الكرات",
+                store_desc: "اختر الكرة المناسبة لك", skills_title: "تطوير المهارات", skills_desc: "طور قدراتك الخاصة باستخدام الجواهر",
+                back_home: "العودة للرئيسية", missions_title: "المهام والإنجازات",
+                missions_desc: "مهام يومية و30 مهمة متدرجة (سهلة وصعبة) لكل خريطة", daily_tab: "يومية",
+                lb_title: "لوحة المتصدرين أونلاين", lb_desc: "أفضل اللاعبين حول العالم", refresh: "تحديث", loading: "جاري تحميل النتائج...",
+                gameover_title: "انتهت اللعبة!", gameover_desc: "حاول مرة أخرى لتحطيم رقمك القياسي", score: "النتيجة:",
+                gems_collected: "الجواهر المجمعة:", new_highscore_msg: "🎉 رقم قياسي جديد! أرسل نتيجة لوحة المتصدرين:",
+                send: "إرسال", try_again: "إعادة المحاولة", active_shield: "درع", magnet_timer: "مغناطيس",
+                pause_title: "اللعبة متوقفة مؤقتاً", pause_desc: "خذ استراحة ثم تابع السباق", resume: "متابعة اللعب",
+                settings_title: "إعدادات اللعبة", settings_desc: "تخصيص اللغة والصوت والرسوميات والتحكم", setting_sound: "المؤثرات الصوتية (SFX)",
+                setting_graphics: "جودة الرسوميات", setting_sensitivity: "حساسية اللمس/الحركة", setting_language: "لغة اللعبة (Language)",
+                logout_account: "تسجيل الخروج / تغيير الحساب",
+                level: "المستوى", max_lvl: "الحد الأقصى", upgrade: "ترقية",
+                daily_reward_btn: "المكافأة اليومية", dr_title: "المكافأة اليومية", dr_desc: "عد كل يوم واجمع الجوائز والكرة الذهبية في اليوم 7!",
+                dr_claim: "لقد استلمت مكافأة اليوم بالفعل!", dr_already: "لقد استلمت مكافأة اليوم بالفعل!",
+                profile_title: "الملف الشخصي", profile_desc: "تخصيص اسم اللاعب واختيار كرة البروفايل", player_name_label: "اسم اللاعب:",
+                avatar_select_label: "اختر كرة البروفايل:", save: "حفظ", cancel: "إلغاء", edit_profile: "تعديل البروفايل",
+                map_select_title: "اختر خريطة السباق", map_select_desc: "اختر العالم الذي تفضل اللعب فيه",
+                map_classic_name: "كلاسيكي", free: "مجاني",
+                map_city_name: "المدينة",
+                current_map_label: "الخريطة الحالية:", change_map: "تغيير", confirm: "تأكيد",
+                buy_confirm_title: "تأكيد الشراء", buy_confirm_desc: "هل تريد شراء خريطة \"المدينة\" مقابل 10,000 جوهرة؟", yes_buy: "نعم، اشرِ الآن"
+            },
+            en: {
+                gems: "Gems", speed: "Speed", shop: "Shop", skills: "Skills Upgrade", missions: "Missions", leaderboard: "Leaderboard", settings: "Settings",
+                game_title: "Ball Race", game_desc: "Roll the ball, dodge obstacles, and collect gems!",
+                highscore: "Highscore:", start_game: "Start Game", store_title: "Ball Store",
+                store_desc: "Choose your favorite ball", skills_title: "Skills Upgrade", skills_desc: "Upgrade special abilities using gems",
+                back_home: "Back to Home", missions_title: "Missions & Achievements",
+                missions_desc: "Daily missions & 30 graduated missions per map", daily_tab: "Daily",
+                lb_title: "Online Leaderboard", lb_desc: "Top players around the world", refresh: "Refresh", loading: "Loading scores...",
+                gameover_title: "Game Over!", gameover_desc: "Try again to beat your high score", score: "Score:",
+                gems_collected: "Gems Collected:", new_highscore_msg: "🎉 New High Score! Submit to Leaderboard:",
+                send: "Send", try_again: "Try Again", active_shield: "Shield", magnet_timer: "Magnet",
+                pause_title: "Game Paused", pause_desc: "Take a break and resume when ready", resume: "Resume",
+                settings_title: "Game Settings", settings_desc: "Customize language, sound, graphics, and controls", setting_sound: "Sound Effects (SFX)",
+                setting_graphics: "Graphics Quality", setting_sensitivity: "Touch Sensitivity", setting_language: "Language",
+                logout_account: "Sign Out / Change Account",
+                level: "Level", max_lvl: "MAX", upgrade: "Upgrade",
+                daily_reward_btn: "Daily Reward", dr_title: "Daily Reward", dr_desc: "Return every day to collect rewards and golden ball on Day 7!",
+                dr_claim: "Already claimed today's reward!", dr_already: "Already claimed today's reward!",
+                profile_title: "Profile", profile_desc: "Customize player name & profile ball", player_name_label: "Player Name:",
+                avatar_select_label: "Select Profile Ball:", save: "Save", cancel: "Cancel", edit_profile: "Edit Profile",
+                map_select_title: "Select Race Map", map_select_desc: "Choose the world you want to play in",
+                map_classic_name: "Classic", free: "Free",
+                map_city_name: "City",
+                current_map_label: "Current Map:", change_map: "Change", confirm: "Confirm",
+                buy_confirm_title: "Confirm Purchase", buy_confirm_desc: "Do you want to buy the \"City\" map for 10,000 gems?", yes_buy: "Yes, Buy Now"
+            },
+            fr: {
+                gems: "Gemmes", speed: "Vitesse", shop: "Boutique", skills: "Compétences", missions: "Missions", leaderboard: "Classement", settings: "Paramètres",
+                game_title: "Course de Balles", game_desc: "Roulez, évitez les obstacles et collectez des gemmes !",
+                highscore: "Meilleur Score:", start_game: "Commencer", store_title: "Boutique de Balles",
+                store_desc: "Choisissez votre balle", skills_title: "Amélioration des Compétences", skills_desc: "Améliorez vos capacités avec des gemmes",
+                back_home: "Accueil", missions_title: "Missions & Succès",
+                missions_desc: "Missions quotidiennes et 30 missions progressives par carte", daily_tab: "Quotidien",
+                lb_title: "Classement En Ligne", lb_desc: "Meilleurs joueurs du monde", refresh: "Actualiser", loading: "Chargement...",
+                gameover_title: "Partie Terminée !", gameover_desc: "Essayez à nouveau", score: "Score:",
+                gems_collected: "Gemmes Collectées:", new_highscore_msg: "🎉 Nouveau Record ! Envoyez votre score :",
+                send: "Envoyer", try_again: "Rejouer", active_shield: "Bouclier", magnet_timer: "Aimant",
+                pause_title: "Jeu en Pause", pause_desc: "Faites une pause et reprenez", resume: "Reprendre",
+                settings_title: "Paramètres du Jeu", settings_desc: "Personnaliser la langue, le son, les graphismes et les contrôles", setting_sound: "Effets Sonores (SFX)",
+                setting_graphics: "Qualité Graphique", setting_sensitivity: "Sensibilité Tactile", setting_language: "Langue",
+                logout_account: "Déconnexion / Changer de Compte",
+                level: "Niveau", max_lvl: "MAX", upgrade: "Améliorer",
+                daily_reward_btn: "Récompense Quotidienne", dr_title: "Récompense Quotidienne", dr_desc: "Revenez chaque jour pour collecter les récompenses !",
+                dr_claim: "Déjà réclamé aujourd'hui !", dr_already: "Déjà réclamé aujourd'hui !",
+                profile_title: "Profil", profile_desc: "Personnaliser le pseudo et la balle", player_name_label: "Nom du joueur:",
+                avatar_select_label: "Choisir la balle de profil:", save: "Enregistrer", cancel: "Annuler", edit_profile: "Modifier le profil",
+                map_select_title: "Choisir la Carte", map_select_desc: "Choisissez le monde de course",
+                map_classic_name: "Classique", free: "Gratuit",
+                map_city_name: "Ville",
+                current_map_label: "Carte actuelle:", change_map: "Changer", confirm: "Confirmer",
+                buy_confirm_title: "Confirmer l'achat", buy_confirm_desc: "Voulez-vous acheter la carte \"Ville\" pour 10 000 gemmes ?", yes_buy: "Oui, Acheter"
+            },
+            es: {
+                gems: "Gemas", speed: "Velocidad", shop: "Tienda", skills: "Habilidades", missions: "Missions", leaderboard: "Clasificación", settings: "Ajustes",
+                game_title: "Carrera de Bolas", game_desc: "¡Rueda la bola, esquiva obstáculos y recolecta gemas!",
+                highscore: "Puntuación Máxima:", start_game: "Empezar", store_title: "Tienda de Bolas",
+                store_desc: "Elige tu bola favorita", skills_title: "Mejora de Habilidades", skills_desc: "Mejora tus habilidades con gemas",
+                back_home: "Inicio", missions_title: "Misiones y Logros",
+                missions_desc: "Misiones diarias y 30 misiones progresivas por mapa", daily_tab: "Diario",
+                lb_title: "Clasificación Online", lb_desc: "Mejores jugadores del mundo", refresh: "Actualizar", loading: "Cargando...",
+                gameover_title: "¡Fin del Juego!", gameover_desc: "Inténtalo de nuevo", score: "Puntuación:",
+                gems_collected: "Gemas Recolectadas:", new_highscore_msg: "🎉 ¡Nuevo récord! Envía tu puntuación:",
+                send: "Enviar", try_again: "Reintentar", active_shield: "Escudo", magnet_timer: "Imán",
+                pause_title: "Juego Pausado", pause_desc: "Tómate un respiro y continúa", resume: "Continuar",
+                settings_title: "Ajustes del Jeu", settings_desc: "Personalizar idioma, sonido, gráficos y controles", setting_sound: "Efectos de Sonido (SFX)",
+                setting_graphics: "Calidad Gráfica", setting_sensitivity: "Sensibilidad Táctil", setting_language: "Idioma",
+                logout_account: "Cerrar Sesión / Cambiar Cuenta",
+                level: "Nivel", max_lvl: "MÁX", upgrade: "Mejorar",
+                daily_reward_btn: "Recompensa Diaria", dr_title: "Recompensa Diaria", dr_desc: "¡Vuelve cada día para reclamar recompensas!",
+                dr_claim: "¡Ya reclamado hoy!", dr_already: "¡Ya reclamado hoy!",
+                profile_title: "Perfil", profile_desc: "Personalizar apodo y bola de perfil", player_name_label: "Nombre del jugador:",
+                avatar_select_label: "Seleccionar bola de profil:", save: "Guardar", cancel: "Cancelar", edit_profile: "Editar perfil",
+                map_select_title: "Elegir Mapa", map_select_desc: "Selecciona el mundo de carrera",
+                map_classic_name: "Clásico", free: "Gratis",
+                map_city_name: "Ciudad",
+                current_map_label: "Mapa actual:", change_map: "Cambiar", confirm: "Confirmer",
+                buy_confirm_title: "Confirmar compra", buy_confirm_desc: "¿Quieres comprar el mapa \"Ciudad\" por 10,000 gemas?", yes_buy: "Sí, Comprar"
+            }
+        };
+
+        let currentLang = localStorage.getItem('runner_lang') || 'ar';
+
+        const SKINS = [
+            { id: 'steel_ball', name: 'الكرة الحديدية', ability: 'ثابتة ومتوازنة', cost: 0, gradientClass: 'from-slate-400 via-slate-600 to-slate-900', shadowColor: 'rgba(100,116,139,0.8)', hexColor: 0x64748b, emissive: 0x334155, exclusive: false },
+            { id: 'neon_orb', name: 'كرة النيون الزرقاء', ability: 'مضاعف نقاط 1.5x', cost: 500, gradientClass: 'from-cyan-300 via-sky-500 to-blue-800', shadowColor: 'rgba(6,182,212,0.9)', hexColor: 0x06b6d4, emissive: 0x0891b2, exclusive: false },
+            { id: 'gold_ball', name: 'الكرة الذهبية', ability: 'مضاعف جواهر 2x', cost: 1200, gradientClass: 'from-amber-200 via-yellow-500 to-amber-800', shadowColor: 'rgba(245,158,11,0.9)', hexColor: 0xf59e0b, emissive: 0xb45309, exclusive: false },
+            { id: 'plasma_ball', name: 'كرة البلازما البنفسجية', ability: 'درع حماية عند البداية', cost: 2500, gradientClass: 'from-purple-300 via-purple-600 to-indigo-950', shadowColor: 'rgba(139,92,246,0.9)', hexColor: 0x8b5cf6, emissive: 0x6d28d9, exclusive: false },
+            { id: 'cyber_ball', name: 'كرة السيبر الوردية', ability: 'سرعة فائقة ومرونة', cost: 4500, gradientClass: 'from-pink-300 via-rose-500 to-pink-900', shadowColor: 'rgba(236,72,153,0.9)', hexColor: 0xec4899, emissive: 0xbe185d, exclusive: false },
+            { id: 'crystal_ball', name: 'كرة البلورية السماوية', ability: 'جذب تلقائي مستمر للجواهر', cost: 8000, gradientClass: 'from-white via-sky-300 to-cyan-700', shadowColor: 'rgba(56,189,248,0.9)', hexColor: 0x38bdf8, emissive: 0x0284c7, exclusive: false },
+            { id: 'emerald_ball', name: 'الكرة الزمردية الخضراء', ability: 'حماية إضافية ومقاومة', cost: 12000, gradientClass: 'from-emerald-200 via-emerald-500 to-teal-900', shadowColor: 'rgba(16,185,129,0.9)', hexColor: 0x10b981, emissive: 0x047857, exclusive: false },
+            { id: 'legendary_ball', name: 'الكرة الأسطورية المشعة', ability: 'مضاعف نقاط وجواهر معا!', cost: 20000, gradientClass: 'from-yellow-100 via-amber-400 to-yellow-800', shadowColor: 'rgba(234,179,8,0.9)', hexColor: 0xeab308, emissive: 0xca8a04, exclusive: false },
+            { id: 'day7_exclusive_ball', name: 'الكرة الذهبية (اليوم السابع)', ability: 'مضاعف نقاط وجواهر + درع ومغناطيس', cost: 0, gradientClass: 'from-amber-100 via-yellow-400 to-orange-700', shadowColor: 'rgba(245,158,11,1)', hexColor: 0xf59e0b, emissive: 0xfbbf24, exclusive: true }
+        ];
+
+        function updateProfileUI() {
+            document.getElementById('display-player-name').textContent = playerProfile.name;
+            const container = document.getElementById('user-avatar-container');
+            const selectedSkin = SKINS.find(s => s.id === playerProfile.avatarBall) || SKINS[0];
+            
+            container.innerHTML = `
+                <div class="w-full h-full rounded-full bg-gradient-to-tr ${selectedSkin.gradientClass} flex items-center justify-center shadow-[inset_-2px_-2px_4px_rgba(0,0,0,0.8),0_0_8px_${selectedSkin.shadowColor}] relative overflow-hidden">
+                    <div class="absolute w-2 h-2 bg-white/90 rounded-full top-1 left-1 blur-[0.2px]"></div>
+                    <div class="absolute inset-0 bg-[radial-gradient(circle_at_35%_35%,rgba(255,255,255,0.45),transparent_70%)]"></div>
+                </div>
+            `;
+        }
+
+        function openProfileEdit() {
+            document.getElementById('profile-name-input').value = playerProfile.name;
+            renderAvatarBallSelection();
+            document.getElementById('profile-screen').classList.remove('hidden');
+        }
+
+        function closeProfileEdit() {
+            document.getElementById('profile-screen').classList.add('hidden');
+        }
+
+        function renderAvatarBallSelection() {
+            const grid = document.getElementById('avatar-ball-selection-grid');
+            grid.innerHTML = '';
+
+            SKINS.forEach(skin => {
+                const isSelected = playerProfile.avatarBall === skin.id;
+                const isUnlocked = unlockedSkins.includes(skin.id);
+
+                let btn = document.createElement('button');
+                let btnClass = "p-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition border cursor-pointer ";
+                if (isSelected) {
+                    btnClass += "bg-cyan-500/25 border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.4)]";
+                } else if (isUnlocked) {
+                    btnClass += "bg-slate-800/60 border-white/10 hover:border-white/30";
+                } else {
+                    btnClass += "bg-slate-900/40 border-white/5 opacity-40";
+                }
+                btn.className = btnClass;
+
+                btn.innerHTML = `
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-tr ${skin.gradientClass} flex items-center justify-center shadow-[inset_-4px_-4px_10px_rgba(0,0,0,0.8),0_0_15px_${skin.shadowColor}] border border-white/60 relative overflow-hidden">
+                        <div class="absolute w-3.5 h-3.5 bg-white/90 rounded-full top-1.5 left-1 blur-[0.3px]"></div>
+                        <div class="absolute inset-0 bg-[radial-gradient(circle_at_35%_35%,rgba(255,255,255,0.45),transparent_70%)]"></div>
+                    </div>
+                    <span class="text-[9px] font-bold text-gray-300 w-full text-center leading-tight line-clamp-1">${skin.name}</span>
+                `;
+
+                btn.onclick = () => {
+                    if (isUnlocked) {
+                        playerProfile.avatarBall = skin.id;
+                        renderAvatarBallSelection();
+                    } else {
+                        showCustomAlert(
+                            currentLang === 'ar' ? 'مقفل' : 'Locked',
+                            currentLang === 'ar' ? 'يجب عليك فتح هذه الكرة في المتجر أو عبر المكافأة أولاً!' : 'You must unlock this ball in the store or rewards first!',
+                            'fa-lock',
+                            'text-amber-400'
+                        );
+                    }
+                };
+
+                grid.appendChild(btn);
+            });
+        }
+
+        function saveProfile() {
+            let name = document.getElementById('profile-name-input').value.trim();
+            if (name) {
+                playerProfile.name = name;
+            }
+            localStorage.setItem('runner_player_profile', JSON.stringify(playerProfile));
+            updateProfileUI();
+            closeProfileEdit();
+        }
+
+        let unlockedSkins = JSON.parse(localStorage.getItem('runner_unlocked_skins')) || ['steel_ball'];
+        let currentSkinId = localStorage.getItem('runner_selected_skin') || 'steel_ball';
+
+        function changeLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('runner_lang', lang);
+            
+            const root = document.getElementById('html-root');
+            root.setAttribute('lang', lang);
+            root.setAttribute('dir', (lang === 'ar') ? 'rtl' : 'ltr');
+
+            ['ar', 'en', 'fr', 'es'].forEach(l => {
+                const btn = document.getElementById(`lang-btn-${l}`);
+                if (btn) {
+                    if (l === lang) {
+                        btn.className = "py-2 px-2 rounded-xl text-xs font-bold transition border cursor-pointer text-center bg-pink-500/35 text-pink-300 border-pink-500/60 shadow-[0_0_10px_rgba(236,72,153,0.3)]";
+                    } else {
+                        btn.className = "py-2 px-2 rounded-xl text-xs font-bold transition border cursor-pointer text-center bg-slate-800/60 text-gray-300 border-white/10 hover:bg-slate-700";
+                    }
+                }
+            });
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (TRANSLATIONS[currentLang][key]) {
+                    el.textContent = TRANSLATIONS[currentLang][key];
+                }
+            });
+
+            const nameInput = document.getElementById('profile-name-input');
+            if (nameInput) {
+                nameInput.placeholder = (currentLang === 'ar') ? 'ادخل اسمك المستعار...' : (currentLang === 'fr') ? 'Entrez votre pseudo...' : (currentLang === 'es') ? 'Ingresa tu apodo...' : 'Enter your nickname...';
+            }
+
+            updateMapDisplayLabel();
+            renderShop();
+            renderMissions();
+            renderSkills();
+            renderDailyRewards();
+        }
+
+        function toggleSound(enabled) {
+            gameSettings.soundEnabled = enabled;
+            saveSettings();
+        }
+
+        function changeGraphicsOption(quality) {
+            gameSettings.graphicsQuality = quality;
+            saveSettings();
+            updateGraphicsUI();
+            if (renderer) {
+                if (quality === 'low') {
+                    renderer.setPixelRatio(1);
+                    renderer.shadowMap.enabled = false;
+                } else if (quality === 'medium') {
+                    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+                    renderer.shadowMap.enabled = true;
+                } else {
+                    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                    renderer.shadowMap.enabled = true;
+                }
+            }
+        }
+
+        function updateGraphicsUI() {
+            const q = gameSettings.graphicsQuality;
+            ['high', 'medium', 'low'].forEach(opt => {
+                const btn = document.getElementById(`gfx-${opt}`);
+                if (btn) {
+                    if (opt === q) {
+                        btn.className = "py-2.5 px-2 rounded-xl text-xs font-bold transition border cursor-pointer text-center bg-pink-500/30 text-pink-300 border-pink-500/60 shadow-[0_0_10px_rgba(236,72,153,0.3)]";
+                    } else {
+                        btn.className = "py-2.5 px-2 rounded-xl text-xs font-bold transition border cursor-pointer text-center bg-slate-800/60 text-gray-300 border-white/10 hover:bg-slate-700";
+                    }
+                }
+            });
+        }
+
+        function changeSensitivity(val) {
+            gameSettings.sensitivity = parseFloat(val);
+            document.getElementById('sensitivity-value').textContent = parseFloat(val).toFixed(1) + 'x';
+            saveSettings();
+        }
+
+        function saveSettings() {
+            localStorage.setItem('runner_settings', JSON.stringify(gameSettings));
+        }
+
+        function initSettingsUI() {
+            document.getElementById('setting-sound-toggle').checked = gameSettings.soundEnabled;
+            document.getElementById('setting-sensitivity-range').value = gameSettings.sensitivity;
+            document.getElementById('sensitivity-value').textContent = gameSettings.sensitivity.toFixed(1) + 'x';
+            updateGraphicsUI();
+            changeLanguage(currentLang);
+        }
+
+        function renderDailyRewards() {
+            const container = document.getElementById('daily-reward-grid');
+            container.innerHTML = '';
+            
+            let todayUTC = getUTCDateString();
+            let isAlreadyClaimedToday = (dailyRewardData.lastClaimDate === todayUTC);
+            const displayOrder = [2, 1, 0, 5, 4, 3]; 
+
+            displayOrder.forEach(index => {
+                let dayNum = index + 1;
+                let rewardAmount = REWARD_AMOUNTS[index];
+                let isPassed = index < dailyRewardData.streakDay || (index === dailyRewardData.streakDay && isAlreadyClaimedToday);
+                let isCurrent = index === dailyRewardData.streakDay && !isAlreadyClaimedToday;
+
+                let cardClass = "p-2.5 rounded-2xl border flex flex-col items-center justify-center gap-1 text-center ";
+                if (isPassed) {
+                    cardClass += "bg-slate-800/40 border-white/5 opacity-50";
+                } else if (isCurrent) {
+                    cardClass += "bg-amber-500/20 border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.3)] animate-pulse";
+                } else {
+                    cardClass += "bg-slate-800/70 border-white/10";
+                }
+
+                let item = document.createElement('div');
+                item.className = cardClass;
+                item.innerHTML = `
+                    <div class="text-[10px] font-bold text-gray-400">اليوم ${dayNum}</div>
+                    ${isPassed ? '<i class="fa-solid fa-check text-green-400 text-sm"></i>' : '<i class="fa-solid fa-gem text-amber-400 text-sm"></i>'}
+                    <div class="text-xs font-black text-amber-300">${rewardAmount}+</div>
+                `;
+                container.appendChild(item);
+            });
+
+            const day7Card = document.getElementById('day-7-card');
+            let isDay7Passed = 6 < dailyRewardData.streakDay || (6 === dailyRewardData.streakDay && isAlreadyClaimedToday);
+            if (isDay7Passed) {
+                day7Card.className = "p-3 rounded-2xl border border-green-500/40 bg-green-950/20 mb-3 relative overflow-hidden flex items-center justify-between opacity-60";
+            } else {
+                day7Card.className = "p-3 rounded-2xl border border-amber-500/60 bg-gradient-to-r from-amber-950/40 to-slate-900/80 mb-3 relative overflow-hidden flex items-center justify-between shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-pulse";
+            }
+
+            const claimBtn = document.getElementById('claim-daily-btn');
+            if (isAlreadyClaimedToday) {
+                claimBtn.disabled = true;
+                claimBtn.className = "w-full py-3 bg-slate-800 text-gray-500 font-bold text-xs rounded-xl border border-white/5 cursor-not-allowed mb-2";
+                claimBtn.textContent = TRANSLATIONS[currentLang].dr_already;
+            } else {
+                claimBtn.disabled = false;
+                claimBtn.className = "w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 font-black text-xs rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.4)] active:scale-95 transition cursor-pointer mb-2";
+                claimBtn.innerHTML = `<span data-i18n="dr_claim">استلام مكافأة اليوم</span> <i class="fa-solid fa-check mr-1"></i>`;
+            }
+        }
+
+        function claimDailyReward() {
+            let todayUTC = getUTCDateString();
+            if (dailyRewardData.lastClaimDate === todayUTC) return;
+
+            let currentDayIndex = dailyRewardData.streakDay;
+            let rewardTitle = "";
+            let rewardMsg = "";
+
+            if (currentDayIndex < 6) {
+                let reward = REWARD_AMOUNTS[currentDayIndex];
+                totalOwnedGems += reward;
+                localStorage.setItem('runner_total_gems', totalOwnedGems);
+                rewardTitle = currentLang === 'ar' ? 'مبروك المكافأة!' : 'Reward Claimed!';
+                rewardMsg = currentLang === 'ar' ? `🎉 حصلت على ${reward} جوهرة مجانية بنجاح!` : `🎉 You received ${reward} free gems successfully!`;
+            } else {
+                totalOwnedGems += 200;
+                localStorage.setItem('runner_total_gems', totalOwnedGems);
+                if (!unlockedSkins.includes('day7_exclusive_ball')) {
+                    unlockedSkins.push('day7_exclusive_ball');
+                    localStorage.setItem('runner_unlocked_skins', JSON.stringify(unlockedSkins));
+                }
+                rewardTitle = currentLang === 'ar' ? 'الكرة الذهبية الأسطورية!' : 'Legendary Golden Ball!';
+                rewardMsg = currentLang === 'ar' ? `🌟 مبروك! حصلت على الكرة الذهبية الحصرية + 200 جوهرة إضافية!` : `🌟 Congratulations! You unlocked the exclusive Golden Ball + 200 gems!`;
+            }
+
+            document.getElementById('start-gems-display').textContent = totalOwnedGems;
+
+            dailyRewardData.lastClaimDate = todayUTC;
+            dailyRewardData.streakDay = (dailyRewardData.streakDay + 1) % 7;
+            localStorage.setItem('runner_daily_reward', JSON.stringify(dailyRewardData));
+
+            AudioFX.playPowerup();
+            showCustomAlert(rewardTitle, rewardMsg, 'fa-gift', 'text-amber-400');
+            renderDailyRewards();
+            renderShop();
+        }
+
+        const LANES = [-2.5, 0, 2.5];
+        const INITIAL_SPEED = 16;
+        const MAX_SPEED = 38;
+        const SPEED_INCREMENT = 0.15;
+        const JUMP_FORCE = 12;
+        const GRAVITY = 35;
+
+        let totalOwnedGems = parseInt(localStorage.getItem('runner_total_gems')) || 0;
+        let sessionGems = 0;
+
+        let playerSkills = JSON.parse(localStorage.getItem('runner_player_skills')) || {
+            shield_duration: { level: 1, maxLevel: 5, baseCost: 40 },
+            magnet_radius: { level: 1, maxLevel: 5, baseCost: 50 },
+            score_multiplier: { level: 1, maxLevel: 5, baseCost: 75 }
+        };
+
+        const SKILLS_CONFIG = [
+            { id: 'shield_duration', nameAr: 'مدد درع الحماية', nameEn: 'Shield Duration', icon: 'fa-shield-halved', color: 'text-blue-400', descAr: 'يزيد وقت الحماية عند البدء والالتقاط' },
+            { id: 'magnet_radius', nameAr: 'نطاق مغناطيس الجواهر', nameEn: 'Magnet Radius', icon: 'fa-magnet', color: 'text-emerald-400', descAr: 'يوسع مدى جذب الجواهر التلقائي' },
+            { id: 'score_multiplier', nameAr: 'مضاعف النقاط الإضافي', nameEn: 'Score Multiplier', icon: 'fa-star', color: 'text-amber-400', descAr: 'يزيد سرعة تجميع نقاطك في كل جولة' }
+        ];
+
+        function renderSkills() {
+            const container = document.getElementById('skills-container');
+            container.innerHTML = '';
+            document.getElementById('skills-gems-display').textContent = totalOwnedGems;
+            document.getElementById('start-gems-display').textContent = totalOwnedGems;
+
+            SKILLS_CONFIG.forEach(skillInfo => {
+                const skill = playerSkills[skillInfo.id];
+                const isMax = skill.level >= skill.maxLevel;
+                const cost = isMax ? 0 : skill.baseCost * skill.level;
+                const t = TRANSLATIONS[currentLang];
+
+                const item = document.createElement('div');
+                item.className = `p-3 rounded-2xl border border-white/10 bg-slate-800/60 flex flex-col gap-2.5`;
+
+                item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-lg ${skillInfo.color} border border-white/10 shadow-inner">
+                                <i class="fa-solid ${skillInfo.icon}"></i>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs font-bold text-gray-200">${currentLang === 'ar' ? skillInfo.nameAr : skillInfo.nameEn}</div>
+                                <div class="text-[10px] text-gray-400">${skillInfo.descAr}</div>
+                            </div>
+                        </div>
+                        <div class="text-xs font-black text-cyan-400">
+                            ${t.level} ${skill.level}/${skill.maxLevel}
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center pt-1 border-t border-white/5">
+                        <span class="text-[10px] text-gray-400">Effect: Lv.${skill.level} active</span>
+                        <button onclick="upgradeSkill('${skillInfo.id}')" class="px-3.5 py-1.5 rounded-xl font-bold text-xs transition active:scale-95 cursor-pointer ${isMax ? 'bg-slate-700 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-emerald-500 to-cyan-600 text-white shadow-lg'}">
+                            ${isMax ? t.max_lvl : `<i class="fa-solid fa-gem ml-1 text-amber-300"></i> ${t.upgrade} (${cost})`}
+                        </button>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function upgradeSkill(skillId) {
+            let skill = playerSkills[skillId];
+            if (skill.level >= skill.maxLevel) return;
+            let cost = skill.baseCost * skill.level;
+
+            if (totalOwnedGems >= cost) {
+                totalOwnedGems -= cost;
+                skill.level++;
+                localStorage.setItem('runner_total_gems', totalOwnedGems);
+                localStorage.setItem('runner_player_skills', JSON.stringify(playerSkills));
+                AudioFX.playPowerup();
+                renderSkills();
+                document.getElementById('start-gems-display').textContent = totalOwnedGems;
+            } else {
+                showCustomAlert(
+                    currentLang === 'ar' ? 'جواهر غير كافية' : 'Not Enough Gems',
+                    currentLang === 'ar' ? 'ليس لديك جواهر كافية لترقية هذه المهارة!' : 'You do not have enough gems to upgrade this skill!',
+                    'fa-gem',
+                    'text-amber-400'
+                );
+            }
+        }
+
+        let currentUTCDate = getUTCDateString();
+        let savedMissionDate = localStorage.getItem('runner_missions_utc_date') || '';
+        let dailyMissions = JSON.parse(localStorage.getItem('runner_daily_missions')) || [];
+
+        if (savedMissionDate !== currentUTCDate || dailyMissions.length === 0) {
+            dailyMissions = generateDailyMissionsForDate(currentUTCDate);
+            localStorage.setItem('runner_missions_utc_date', currentUTCDate);
+            localStorage.setItem('runner_daily_missions', JSON.stringify(dailyMissions));
+        }
+
+        let mapMissions30 = JSON.parse(localStorage.getItem('runner_30_map_missions')) || {
+            classic: generateGraduated30MapMissions('classic', currentLang === 'ar' ? 'كلاسيكي' : 'Classic'),
+            city: generateGraduated30MapMissions('city', currentLang === 'ar' ? 'المدينة' : 'City')
+        };
+
+        let activeMissionTabType = 'daily';
+
+        function switchMissionTab(tabType) {
+            activeMissionTabType = tabType;
+            const btnDaily = document.getElementById('tab-mission-daily');
+            const btnClassic = document.getElementById('tab-mission-classic');
+            const btnCity = document.getElementById('tab-mission-city');
+
+            [btnDaily, btnClassic, btnCity].forEach(b => b.className = "py-2 px-1 text-[11px] font-bold rounded-xl bg-slate-800 text-gray-300 hover:bg-slate-700 transition cursor-pointer text-center");
+
+            if (tabType === 'daily') {
+                btnDaily.className = "py-2 px-1 text-[11px] font-bold rounded-xl bg-cyan-500 text-slate-950 transition cursor-pointer text-center";
+            } else if (tabType === 'classic') {
+                btnClassic.className = "py-2 px-1 text-[11px] font-bold rounded-xl bg-cyan-500 text-slate-950 transition cursor-pointer text-center";
+            } else {
+                btnCity.className = "py-2 px-1 text-[11px] font-bold rounded-xl bg-amber-500 text-slate-950 transition cursor-pointer text-center";
+            }
+            renderMissions();
+        }
+
+        function renderMissions() {
+            let liveUTCDate = getUTCDateString();
+            if (localStorage.getItem('runner_missions_utc_date') !== liveUTCDate) {
+                localStorage.setItem('runner_missions_utc_date', liveUTCDate);
+                dailyMissions = generateDailyMissionsForDate(liveUTCDate);
+                localStorage.setItem('runner_daily_missions', JSON.stringify(dailyMissions));
+            }
+
+            const container = document.getElementById('missions-container');
+            container.innerHTML = '';
+            document.getElementById('missions-gems-display').textContent = totalOwnedGems;
+            document.getElementById('start-gems-display').textContent = totalOwnedGems;
+
+            let targetList = [];
+            if (activeMissionTabType === 'daily') targetList = dailyMissions;
+            else targetList = mapMissions30[activeMissionTabType] || [];
+
+            targetList.forEach(mission => {
+                const percent = Math.min(100, Math.round((mission.progress / mission.target) * 100));
+                const item = document.createElement('div');
+                item.className = `p-3 rounded-2xl border ${mission.completed ? 'border-green-500/40 bg-green-500/10' : 'border-white/10 bg-slate-800/60'} flex flex-col gap-2`;
+
+                item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-gray-200">${mission.title}</span>
+                        <span class="text-xs font-bold text-amber-400 flex items-center gap-1">
+                            <i class="fa-solid fa-gem"></i> +${mission.reward}
+                        </span>
+                    </div>
+                    <div class="w-full bg-slate-700/60 h-2 rounded-full overflow-hidden border border-white/5">
+                        <div class="bg-cyan-400 h-full transition-all duration-300" style="width: ${percent}%"></div>
+                    </div>
+                    <div class="flex justify-between items-center text-[10px] text-gray-400">
+                        <span>Progress: ${mission.progress} / ${mission.target}</span>
+                        <span>${mission.completed ? '<span class="text-green-400 font-bold">Done ✓</span>' : `${percent}%`}</span>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function updateAllMissionsProgress(gemsEarned, currentScore, isNewGameStart = false) {
+            let liveUTCDate = getUTCDateString();
+            if (localStorage.getItem('runner_missions_utc_date') !== liveUTCDate) {
+                localStorage.setItem('runner_missions_utc_date', liveUTCDate);
+                dailyMissions = generateDailyMissionsForDate(liveUTCDate);
+            }
+
+            dailyMissions.forEach(m => {
+                if (!m.completed) {
+                    if (m.type === 'gems_round') { if (gemsEarned > m.progress) m.progress = gemsEarned; }
+                    else if (m.type === 'gems_total') { m.progress += gemsEarned; }
+                    else if (m.type === 'score_round') { if (currentScore > m.progress) m.progress = currentScore; }
+                    else if (m.type === 'score_total') { if (currentScore > m.progress) m.progress = currentScore; }
+                    else if (m.type === 'races' && isNewGameStart) { m.progress += 1; }
+
+                    if (m.progress >= m.target) {
+                        m.progress = m.target;
+                        m.completed = true;
+                        totalOwnedGems += m.reward;
+                        AudioFX.playPowerup();
+                    }
+                }
+            });
+
+            let mapList30 = mapMissions30[currentMapId];
+            if (mapList30) {
+                mapList30.forEach(m => {
+                    if (!m.completed) {
+                        if (m.type === 'score_round') { if (currentScore > m.progress) m.progress = currentScore; }
+                        else if (m.type === 'gems_round') { if (gemsEarned > m.progress) m.progress = gemsEarned; }
+
+                        if (m.progress >= m.target) {
+                            m.progress = m.target;
+                            m.completed = true;
+                            totalOwnedGems += m.reward;
+                            AudioFX.playPowerup();
+                        }
+                    }
+                });
+            }
+
+            localStorage.setItem('runner_daily_missions', JSON.stringify(dailyMissions));
+            localStorage.setItem('runner_30_map_missions', JSON.stringify(mapMissions30));
+            localStorage.setItem('runner_total_gems', totalOwnedGems);
+            document.getElementById('start-gems-display').textContent = totalOwnedGems;
+        }
+
+        let isGameRunning = false;
+        let isPaused = false;
+        let currentLane = 1;
+        let playerY = 0.6;
+        let isJumping = false;
+        let jumpVelocity = 0;
+        let score = 0;
+
+        let gameSpeed = INITIAL_SPEED;
+        let highScore = localStorage.getItem('runner_3d_highscore') ? parseInt(localStorage.getItem('runner_3d_highscore')) : 0;
+
+        let activeShield = false;
+        let activeMagnet = false;
+        let magnetTimer = 0;
+
+        let scene, camera, renderer;
+        let playerGroup, playerMesh;
+        let trackSegments = [];
+        let obstacles = [];
+        let gems = [];
+        let powerups = [];
+        let particles = [];
+        let clouds = [];
+        let clock = new THREE.Clock();
+
+        const LEADERBOARD_BIN_ID = '674f195cad19ca34f8d95652';
+        const LEADERBOARD_API_URL = `https://api.jsonbin.io/v3/b/${LEADERBOARD_BIN_ID}/latest`;
+
+        async function fetchLeaderboard() {
+            const container = document.getElementById('leaderboard-container');
+            container.innerHTML = `<div class="text-center text-gray-400 text-xs py-10"><i class="fa-solid fa-spinner fa-spin"></i> ${TRANSLATIONS[currentLang].loading}</div>`;
+            
+            try {
+                const response = await fetch(LEADERBOARD_API_URL);
+                const data = await response.json();
+                let scores = data.record && Array.isArray(data.record.scores) ? data.record.scores : [];
+                scores.sort((a, b) => b.score - a.score);
+                
+                if (scores.length === 0) {
+                    container.innerHTML = `<div class="text-center text-gray-400 text-xs py-10">No scores yet.</div>`;
+                    return;
+                }
+
+                container.innerHTML = '';
+                scores.slice(0, 20).forEach((entry, idx) => {
+                    let rankColor = idx === 0 ? 'text-amber-400 font-black' : (idx === 1 ? 'text-slate-300 font-bold' : (idx === 2 ? 'text-amber-600 font-bold' : 'text-gray-400'));
+                    let row = document.createElement('div');
+                    row.className = 'p-2.5 rounded-xl bg-slate-800/60 border border-white/5 flex justify-between items-center text-xs';
+                    row.innerHTML = `
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-6 text-center ${rankColor}">#${idx + 1}</span>
+                            <span class="font-bold text-gray-200">${escapeHtml(entry.name)}</span>
+                        </div>
+                        <span class="font-black text-cyan-400">${entry.score} pts</span>
+                    `;
+                    container.appendChild(row);
+                });
+            } catch(e) {
+                container.innerHTML = `<div class="text-center text-gray-400 text-xs py-10">CyberHero: 2450<br>SpeedRunner: 1890<br>BallMaster: 1320</div>`;
+            }
+        }
+
+        async function submitScoreOnline() {
+            let nameInput = document.getElementById('player-name-input').value.trim();
+            if (!nameInput) {
+                showCustomAlert('خطأ', 'الرجاء إدخال اسم مستعار صحيح', 'fa-triangle-exclamation', 'text-red-400');
+                return;
+            }
+
+            try {
+                let response = await fetch(LEADERBOARD_API_URL);
+                let data = await response.json();
+                let scores = data.record && Array.isArray(data.record.scores) ? data.record.scores : [];
+
+                scores.push({ name: nameInput, score: score, date: new Date().toLocaleDateString() });
+
+                await fetch(`https://api.jsonbin.io/v3/b/${LEADERBOARD_BIN_ID}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scores: scores })
+                });
+
+                showCustomAlert('تم بنجاح', 'تم إرسال النتيجة إلى لوحة المتصدّرين بنجاح!', 'fa-circle-check', 'text-green-400');
+                document.getElementById('score-submit-box').classList.add('hidden');
+            } catch(e) {
+                showCustomAlert('تم الحفظ', 'تم حفظ النتيجة محلياً!', 'fa-floppy-disk', 'text-cyan-400');
+                document.getElementById('score-submit-box').classList.add('hidden');
+            }
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        const AudioFX = {
+            ctx: null,
+            init() {
+                try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
+            },
+            playCollect() {
+                if (!gameSettings.soundEnabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.15);
+            },
+            playPowerup() {
+                if (!gameSettings.soundEnabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+            },
+            playCrash() {
+                if (!gameSettings.soundEnabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+            }
+        };
+
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            updateEnvironmentTheme();
+
+            camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 300);
+            camera.position.set(0, 4.5, 7.5);
+            camera.lookAt(0, 1.5, -5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            changeGraphicsOption(gameSettings.graphicsQuality);
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xfffaed, 1.3);
+            dirLight.position.set(15, 30, 20);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            createSkybox();
+            createClouds();
+            createPlayer();
+            createInitialTrack();
+            updateProfileUI();
+            updateMapDisplayLabel();
+            renderShop();
+            renderMissions();
+            renderSkills();
+            renderDailyRewards();
+            initSettingsUI();
+
+            document.getElementById('confirm-buy-btn').addEventListener('click', confirmCityMapPurchase);
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function updateEnvironmentTheme() {
+            if (!scene) return;
+            if (currentMapId === 'city') {
+                scene.background = new THREE.Color(0x38bdf8);
+                scene.fog = new THREE.FogExp2(0x38bdf8, 0.005);
+            } else {
+                scene.background = new THREE.Color(0x05070d);
+                scene.fog = new THREE.FogExp2(0x05070d, 0.012);
+            }
+        }
+
+        function rebuildMapEnvironment() {
+            updateEnvironmentTheme();
+            trackSegments.forEach(seg => scene.remove(seg));
+            trackSegments = [];
+            clouds.forEach(c => scene.remove(c));
+            clouds = [];
+            createClouds();
+            createInitialTrack();
+        }
+
+        function createSkybox() {
+            const skyGeo = new THREE.SphereGeometry(220, 32, 32);
+            let skyColor = currentMapId === 'city' ? 0x38bdf8 : 0x030712;
+            const skyMat = new THREE.MeshBasicMaterial({ color: skyColor, side: THREE.BackSide });
+            scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+            if (currentMapId !== 'city') {
+                const starsGeo = new THREE.BufferGeometry();
+                const starsCount = 500;
+                const starPositions = [];
+                for (let i = 0; i < starsCount; i++) {
+                    const u = Math.random();
+                    const v = Math.random();
+                    const theta = u * 2.0 * Math.PI;
+                    const phi = Math.acos(2.0 * v - 1.0);
+                    const r = 160 + Math.random() * 50;
+                    starPositions.push(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
+                }
+                starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+                scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.2, transparent: true, opacity: 0.8 })));
+            }
+        }
+
+        function createClouds() {
+            if (currentMapId !== 'city') return;
+            const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75 });
+            for (let i = 0; i < 15; i++) {
+                const cloudGroup = new THREE.Group();
+                for (let p = 0; p < 4; p++) {
+                    const puff = new THREE.Mesh(new THREE.SphereGeometry(3 + Math.random() * 2, 16, 16), cloudMat);
+                    puff.position.set((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 6);
+                    cloudGroup.add(puff);
+                }
+                cloudGroup.position.set((Math.random() - 0.5) * 120, 35 + Math.random() * 15, -Math.random() * 200);
+                scene.add(cloudGroup);
+                clouds.push(cloudGroup);
+            }
+        }
+
+        function createPlayer() {
+            playerGroup = new THREE.Group();
+            const skin = SKINS.find(s => s.id === currentSkinId) || SKINS[0];
+
+            const geo = new THREE.SphereGeometry(0.55, 32, 32);
+            const material = new THREE.MeshStandardMaterial({
+                color: skin.hexColor,
+                emissive: skin.emissive,
+                emissiveIntensity: 0.6,
+                roughness: 0.2,
+                metalness: 0.8
+            });
+
+            playerMesh = new THREE.Mesh(geo, material);
+            playerMesh.castShadow = true;
+            playerMesh.position.y = 0.6;
+            playerGroup.add(playerMesh);
+
+            playerGroup.position.set(LANES[currentLane], 0, 0);
+            scene.add(playerGroup);
+        }
+
+        function updatePlayerSkin() {
+            if (playerGroup) scene.remove(playerGroup);
+            createPlayer();
+        }
+
+        function renderShop() {
+            const container = document.getElementById('skins-container');
+            container.innerHTML = '';
+            document.getElementById('store-gems-display').textContent = totalOwnedGems;
+            document.getElementById('start-gems-display').textContent = totalOwnedGems;
+
+            SKINS.forEach(skin => {
+                const isUnlocked = unlockedSkins.includes(skin.id);
+                const isSelected = currentSkinId === skin.id;
+
+                const item = document.createElement('div');
+                let itemClass = `p-2.5 rounded-xl flex items-center justify-between cursor-pointer border transition `;
+                if (isSelected) {
+                    itemClass += skin.exclusive ? 'border-amber-400 bg-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'border-cyan-400 bg-cyan-500/25';
+                } else if (skin.exclusive && !isUnlocked) {
+                    itemClass += 'border-amber-500/30 bg-amber-950/30 opacity-60';
+                } else {
+                    itemClass += 'border-white/5 bg-slate-800/60 hover:border-white/25';
+                }
+                item.className = itemClass;
+                
+                item.innerHTML = `
+                    <div class="items-center flex gap-3">
+                        <div class="w-12 h-12 rounded-full bg-gradient-to-tr ${skin.gradientClass} flex items-center justify-center shadow-[inset_-5px_-5px_12px_rgba(0,0,0,0.8),0_0_20px_${skin.shadowColor}] border-2 border-white/70 flex-shrink-0 animate-pulse relative overflow-hidden">
+                            <div class="absolute w-4 h-4 bg-white/90 rounded-full top-2 left-1.5 blur-[0.5px]"></div>
+                            <div class="absolute inset-0 bg-[radial-gradient(circle_at_35%_35%,rgba(255,255,255,0.45),transparent_70%)]"></div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs font-bold ${skin.exclusive ? 'text-amber-300' : 'text-gray-200'}">${skin.name}</div>
+                            <div class="text-[10px] ${skin.exclusive ? 'text-amber-400' : 'text-cyan-300/85'}">${skin.ability}</div>
+                        </div>
+                    </div>
+                    <div class="text-xs font-semibold ${isUnlocked ? 'text-green-400' : (skin.exclusive ? 'text-amber-400' : 'text-amber-400')}">
+                        ${isUnlocked ? (isSelected ? (currentLang==='ar'?'مفعل':'Active') : (currentLang==='ar'?'ممتلك':'Owned')) : (skin.exclusive ? (currentLang==='ar'?'مكافأة اليوم 7':'Day 7 Reward') : `<i class="fa-solid fa-gem ml-1"></i>${skin.cost}`)}
+                    </div>
+                `;
+
+                item.onclick = () => {
+                    if (isUnlocked) {
+                        currentSkinId = skin.id;
+                        localStorage.setItem('runner_selected_skin', currentSkinId);
+                        updatePlayerSkin();
+                        renderShop();
+                    } else if (skin.exclusive) {
+                        showCustomAlert(
+                            currentLang === 'ar' ? 'الكرة الحصرية' : 'Exclusive Ball',
+                            currentLang === 'ar' ? '🎁 اجمع مكافأة اليوم السابع من قسم المكافأة اليومية لاكتساب هذه الكرة الحصرية!' : '🎁 Collect the Day 7 reward from Daily Rewards to unlock this ball!',
+                            'fa-gift',
+                            'text-amber-400'
+                        );
+                    } else if (totalOwnedGems >= skin.cost) {
+                        totalOwnedGems -= skin.cost;
+                        localStorage.setItem('runner_total_gems', totalOwnedGems);
+                        unlockedSkins.push(skin.id);
+                        localStorage.setItem('runner_unlocked_skins', JSON.stringify(unlockedSkins));
+                        currentSkinId = skin.id;
+                        localStorage.setItem('runner_selected_skin', currentSkinId);
+                        updatePlayerSkin();
+                        renderShop();
+                        document.getElementById('start-gems-display').textContent = totalOwnedGems;
+                    } else {
+                        showCustomAlert(
+                            currentLang === 'ar' ? 'جواهر غير كافية' : 'Not Enough Gems',
+                            currentLang === 'ar' ? 'ليس لديك جواهر كافية لفتح هذه الكرة!' : 'You do not have enough gems to unlock this ball!',
+                            'fa-gem',
+                            'text-amber-400'
+                        );
+                    }
+                };
+                container.appendChild(item);
+            });
+        }
+
+        function createTrackSegment(zPosition) {
+            const segmentGroup = new THREE.Group();
+            segmentGroup.position.z = zPosition;
+
+            if (currentMapId === 'city') {
+                const floorGeo = new THREE.BoxGeometry(9.0, 0.4, 40);
+                const floorMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
+                const floor = new THREE.Mesh(floorGeo, floorMat);
+                floor.position.y = -0.2;
+                floor.receiveShadow = (gameSettings.graphicsQuality !== 'low');
+                segmentGroup.add(floor);
+
+                const curbGeo = new THREE.BoxGeometry(0.5, 0.5, 40);
+                const curbMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3 });
+                const leftCurb = new THREE.Mesh(curbGeo, curbMat);
+                leftCurb.position.set(-4.75, 0.05, 0);
+                segmentGroup.add(leftCurb);
+                const rightCurb = new THREE.Mesh(curbGeo, curbMat);
+                rightCurb.position.set(4.75, 0.05, 0);
+                segmentGroup.add(rightCurb);
+
+                const lineMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+                for (let zOffset = -15; zOffset <= 15; zOffset += 10) {
+                    const lineGeo = new THREE.BoxGeometry(0.15, 0.02, 3);
+                    const line1 = new THREE.Mesh(lineGeo, lineMat);
+                    line1.position.set(-1.25, 0.02, zOffset);
+                    segmentGroup.add(line1);
+
+                    const line2 = new THREE.Mesh(lineGeo, lineMat);
+                    line2.position.set(1.25, 0.02, zOffset);
+                    segmentGroup.add(line2);
+                }
+
+                const groundMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.8 });
+                const leftGround = new THREE.Mesh(new THREE.BoxGeometry(16, 0.32, 40), groundMat);
+                leftGround.position.set(-13.25, -0.24, 0);
+                segmentGroup.add(leftGround);
+
+                const rightGround = new THREE.Mesh(new THREE.BoxGeometry(16, 0.32, 40), groundMat);
+                rightGround.position.set(13.25, -0.24, 0);
+                segmentGroup.add(rightGround);
+
+                for (let side of [-1, 1]) {
+                    const houseX = side * 13.5;
+                    for (let zOffset of [-12, 12]) {
+                        const hWidth = 6 + Math.random() * 3;
+                        const hHeight = 16 + Math.random() * 14;
+                        const hDepth = 10;
+                        
+                        const buildingColors = [0x64748b, 0x94a3b8, 0x475569, 0xcbd5e1, 0x94a3b8];
+                        const houseMat = new THREE.MeshStandardMaterial({ 
+                            color: buildingColors[Math.floor(Math.random() * buildingColors.length)], 
+                            roughness: 0.4,
+                            metalness: 0.2
+                        });
+                        const houseGeo = new THREE.BoxGeometry(hWidth, hHeight, hDepth);
+                        const house = new THREE.Mesh(houseGeo, houseMat);
+                        house.position.set(houseX, hHeight / 2 - 0.3, zOffset);
+                        house.castShadow = (gameSettings.graphicsQuality !== 'low');
+                        house.receiveShadow = true;
+                        segmentGroup.add(house);
+                    }
+                }
+
+            } else {
+                const floorGeo = new THREE.BoxGeometry(8.5, 0.4, 40);
+                const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.6 });
+                const floor = new THREE.Mesh(floorGeo, floorMat);
+                floor.position.y = -0.2;
+                floor.receiveShadow = (gameSettings.graphicsQuality !== 'low');
+                segmentGroup.add(floor);
+
+                const railGeo = new THREE.BoxGeometry(0.2, 0.4, 40);
+                const railMat = new THREE.MeshBasicMaterial({ color: 0xc084fc });
+
+                const leftRail = new THREE.Mesh(railGeo, railMat);
+                leftRail.position.set(-4.25, 0.2, 0);
+                segmentGroup.add(leftRail);
+
+                const rightRail = new THREE.Mesh(railGeo, railMat);
+                rightRail.position.set(4.25, 0.2, 0);
+                segmentGroup.add(rightRail);
+            }
+
+            scene.add(segmentGroup);
+            trackSegments.push(segmentGroup);
+        }
+
+        function createInitialTrack() {
+            for (let i = 0; i < 4; i++) {
+                createTrackSegment(-i * 40);
+            }
+        }
+
+        function spawnObstaclesAndGems(zPos) {
+            const pattern = Math.floor(Math.random() * 4);
+            const occupiedLanes = [];
+
+            if (pattern === 0 || pattern === 1) {
+                const lane = Math.floor(Math.random() * 3);
+                createCubeObstacle(LANES[lane], zPos, Math.random() > 0.6);
+                occupiedLanes.push(lane);
+            } else if (pattern === 2) {
+                const freeLane = Math.floor(Math.random() * 3);
+                for (let i = 0; i < 3; i++) {
+                    if (i !== freeLane) {
+                        createCubeObstacle(LANES[i], zPos, false);
+                        occupiedLanes.push(i);
+                    }
+                }
+            } else {
+                const lane = Math.floor(Math.random() * 3);
+                createSpikeObstacle(LANES[lane], zPos);
+                occupiedLanes.push(lane);
+            }
+
+            if (Math.random() > 0.85) {
+                let powerupType = Math.random() > 0.8 ? 'shield' : 'magnet';
+                createPowerup(LANES[Math.floor(Math.random() * 3)], zPos - 10, powerupType);
+            }
+
+            for (let l = 0; l < 3; l++) {
+                if (!occupiedLanes.includes(l) && Math.random() > 0.3) {
+                    createGem(LANES[l], zPos - (Math.random() * 10));
+                }
+            }
+        }
+
+        function createCubeObstacle(x, z, moving) {
+            const geo = new THREE.BoxGeometry(1.4, 1.4, 1.4);
+            let color = 0xef4444, emissive = 0x991b1b;
+            if (currentMapId === 'city') { color = 0xd97706; emissive = 0xb45309; }
+
+            const mat = new THREE.MeshStandardMaterial({ color: color, emissive: emissive, roughness: 0.3 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, 0.7, z);
+            mesh.castShadow = (gameSettings.graphicsQuality !== 'low');
+            scene.add(mesh);
+            obstacles.push({ mesh, moving, speedX: (Math.random() > 0.5 ? 2.5 : -2.5) });
+        }
+
+        function createSpikeObstacle(x, z) {
+            const geo = new THREE.ConeGeometry(0.8, 1.6, 6);
+            let color = 0xf59e0b, emissive = 0xb45309;
+            if (currentMapId === 'city') { color = 0xdc2626; emissive = 0x991b1b; }
+
+            const mat = new THREE.MeshStandardMaterial({ color: color, emissive: emissive, roughness: 0.2 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, 0.8, z);
+            mesh.castShadow = (gameSettings.graphicsQuality !== 'low');
+            scene.add(mesh);
+            obstacles.push({ mesh, moving: false });
+        }
+
+        function createGem(x, z) {
+            const geo = new THREE.OctahedronGeometry(0.4, 0);
+            const mat = new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xeab308, emissiveIntensity: 0.8 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, 0.8, z);
+            scene.add(mesh);
+            gems.push({ mesh });
+        }
+
+        function createPowerup(x, z, type) {
+            const powerupGroup = new THREE.Group();
+            if (type === 'shield') {
+                const shieldGeo = new THREE.SphereGeometry(0.5, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.7);
+                const shieldMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x1d4ed8, emissiveIntensity: 0.8, metalness: 0.6, roughness: 0.2, side: THREE.DoubleSide });
+                powerupGroup.add(new THREE.Mesh(shieldGeo, shieldMat));
+                const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.05, 16, 32), new THREE.MeshBasicMaterial({ color: 0x60a5fa }));
+                ringMesh.rotation.x = Math.PI / 2;
+                powerupGroup.add(ringMesh);
+            } else if (type === 'magnet') {
+                const magnetGroup = new THREE.Group();
+                magnetGroup.add(new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.12, 16, 32, Math.PI), new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0x991b1b, metalness: 0.8 })));
+                const poleMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.1 });
+                const leftPole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.4, 16), poleMat);
+                leftPole.position.set(-0.35, -0.2, 0);
+                const rightPole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.4, 16), poleMat);
+                rightPole.position.set(0.35, -0.2, 0);
+                magnetGroup.add(leftPole);
+                magnetGroup.add(rightPole);
+                magnetGroup.rotation.x = Math.PI / 2;
+                powerupGroup.add(magnetGroup);
+            }
+            powerupGroup.position.set(x, 0.9, z);
+            scene.add(powerupGroup);
+            powerups.push({ mesh: powerupGroup, type });
+        }
+
+        function createExplosionEffect(position, colorHex) {
+            if (gameSettings.graphicsQuality === 'low') return;
+            const count = 15;
+            const pGeo = new THREE.BufferGeometry();
+            const positions = [];
+            const velocities = [];
+            for (let i = 0; i < count; i++) {
+                positions.push(position.x, position.y, position.z);
+                velocities.push((Math.random() - 0.5) * 8, Math.random() * 8 + 2, (Math.random() - 0.5) * 8);
+            }
+            pGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            const pSystem = new THREE.Points(pGeo, new THREE.PointsMaterial({ color: colorHex, size: 0.25, transparent: true, opacity: 1 }));
+            scene.add(pSystem);
+            particles.push({ system: pSystem, velocities: velocities, life: 1.0 });
+        }
+
+        function updateParticles(delta) {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.life -= delta * 2;
+                if (p.life <= 0) {
+                    scene.remove(p.system);
+                    p.system.geometry.dispose();
+                    p.system.material.dispose();
+                    particles.splice(i, 1);
+                    continue;
+                }
+                p.system.material.opacity = p.life;
+                const posArr = p.system.geometry.attributes.position.array;
+                for (let j = 0; j < posArr.length / 3; j++) {
+                    posArr[j * 3] += p.velocities[j * 3] * delta;
+                    posArr[j * 3 + 1] += p.velocities[j * 3 + 1] * delta;
+                    posArr[j * 3 + 2] += p.velocities[j * 3 + 2] * delta;
+                    p.velocities[j * 3 + 1] -= GRAVITY * 0.3 * delta;
+                }
+                p.system.geometry.attributes.position.needsUpdate = true;
+            }
+        }
+
+        function setupControls() {
+            window.addEventListener('keydown', (e) => {
+                if (!isGameRunning || isPaused) return;
+                if ((e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') && currentLane < 2) currentLane++;
+                else if ((e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') && currentLane > 0) currentLane--;
+                else if ((e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') && !isJumping) jump();
+            });
+
+            document.getElementById('btn-left').addEventListener('click', () => { if (isGameRunning && !isPaused && currentLane < 2) currentLane++; });
+            document.getElementById('btn-right').addEventListener('click', () => { if (isGameRunning && !isPaused && currentLane > 0) currentLane--; });
+            document.getElementById('btn-jump').addEventListener('click', () => { if (isGameRunning && !isPaused && !isJumping) jump(); });
+
+            let touchStartX = 0, touchStartY = 0;
+            window.addEventListener('touchstart', (e) => {
+                touchStartX = e.changedTouches[0].screenX;
+                touchStartY = e.changedTouches[0].screenY;
+            }, { passive: true });
+
+            window.addEventListener('touchend', (e) => {
+                if (!isGameRunning || isPaused) return;
+                const diffX = (e.changedTouches[0].screenX - touchStartX) * gameSettings.sensitivity;
+                const diffY = (e.changedTouches[0].screenY - touchStartY) * gameSettings.sensitivity;
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    if (diffX > 35 && currentLane > 0) currentLane--;
+                    else if (diffX < -35 && currentLane < 2) currentLane++;
+                } else {
+                    if (diffY < -35 && !isJumping) jump();
+                }
+            }, { passive: true });
+        }
+
+        function jump() {
+            isJumping = true;
+            jumpVelocity = JUMP_FORCE;
+        }
+
+        function updateGame(delta) {
+            if (!isGameRunning || isPaused) return;
+
+            gameSpeed = Math.min(MAX_SPEED, INITIAL_SPEED + (score / 100) * SPEED_INCREMENT);
+            document.getElementById('hud-speed').textContent = (gameSpeed / INITIAL_SPEED).toFixed(1) + 'x';
+
+            let baseScoreMult = (currentSkinId === 'neon_orb' || currentSkinId === 'legendary_ball' || currentSkinId === 'day7_exclusive_ball') ? 1.5 : 1.0;
+            let skillScoreBonus = 1 + (playerSkills.score_multiplier.level - 1) * 0.15;
+            score += Math.round(gameSpeed * delta * baseScoreMult * skillScoreBonus);
+
+            updateAllMissionsProgress(sessionGems, score, false);
+
+            if (activeMagnet || currentSkinId === 'crystal_ball' || currentSkinId === 'day7_exclusive_ball') {
+                if (currentSkinId !== 'crystal_ball' && currentSkinId !== 'day7_exclusive_ball') {
+                    magnetTimer -= delta;
+                    if (magnetTimer <= 0) activeMagnet = false;
+                }
+            }
+            updatePowerupHUD();
+
+            const targetX = LANES[currentLane];
+            playerGroup.position.x += (targetX - playerGroup.position.x) * 15 * delta;
+
+            if (isJumping) {
+                playerY += jumpVelocity * delta;
+                jumpVelocity -= GRAVITY * delta;
+                if (playerY <= 0.6) { playerY = 0.6; isJumping = false; }
+            }
+            playerMesh.position.y = playerY;
+            playerMesh.rotation.x += gameSpeed * 0.1 * delta;
+            playerMesh.rotation.y += gameSpeed * 0.05 * delta;
+
+            const moveDistance = gameSpeed * delta;
+            trackSegments.forEach((segment) => { segment.position.z += moveDistance; });
+
+            if (currentMapId === 'city') {
+                clouds.forEach(c => {
+                    c.position.z += moveDistance * 0.3;
+                    if (c.position.z > 20) c.position.z = -180;
+                });
+            }
+
+            if (trackSegments[0].position.z > 20) {
+                const oldSeg = trackSegments.shift();
+                oldSeg.position.z = trackSegments[trackSegments.length - 1].position.z - 40;
+                trackSegments.push(oldSeg);
+                spawnObstaclesAndGems(oldSeg.position.z);
+            }
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obs = obstacles[i];
+                obs.mesh.position.z += moveDistance;
+                if (obs.moving) {
+                    obs.mesh.position.x += obs.speedX * delta;
+                    if (obs.mesh.position.x > 2.5 || obs.mesh.position.x < -2.5) obs.speedX *= -1;
+                }
+
+                if (Math.abs(obs.mesh.position.z - playerGroup.position.z) < 0.8 && 
+                    Math.abs(obs.mesh.position.x - playerGroup.position.x) < 0.7 && 
+                    Math.abs(obs.mesh.position.y - playerMesh.position.y) < 0.9) {
+                    if (activeShield) {
+                        activeShield = false;
+                        createExplosionEffect(obs.mesh.position, 0x3b82f6);
+                        scene.remove(obs.mesh);
+                        obstacles.splice(i, 1);
+                        AudioFX.playCrash();
+                        continue;
+                    } else {
+                        handleCrash();
+                        return;
+                    }
+                }
+                if (obs.mesh.position.z > 10) { scene.remove(obs.mesh); obs.mesh.geometry.dispose(); obstacles.splice(i, 1); }
+            }
+
+            for (let i = gems.length - 1; i >= 0; i--) {
+                const gem = gems[i];
+                gem.mesh.position.z += moveDistance;
+                gem.mesh.rotation.y += 3 * delta;
+
+                let magnetRadius = 7 + (playerSkills.magnet_radius.level - 1) * 1.5;
+                if (activeMagnet || currentSkinId === 'crystal_ball' || currentSkinId === 'day7_exclusive_ball') {
+                    if (currentSkinId === 'crystal_ball' || currentSkinId === 'day7_exclusive_ball') magnetRadius += 3;
+                    if (gem.mesh.position.distanceTo(playerGroup.position) < magnetRadius) {
+                        gem.mesh.position.lerp(playerGroup.position, 12 * delta);
+                    }
+                }
+
+                if (playerGroup.position.distanceTo(gem.mesh.position) < 1.1) {
+                    let gemGain = (currentSkinId === 'gold_ball' || currentSkinId === 'legendary_ball' || currentSkinId === 'day7_exclusive_ball') ? 2 : 1;
+                    sessionGems += gemGain;
+                    score += 50;
+                    updateAllMissionsProgress(sessionGems, score, false);
+                    document.getElementById('hud-gems').textContent = sessionGems;
+                    AudioFX.playCollect();
+                    createExplosionEffect(gem.mesh.position, 0xfacc15);
+                    scene.remove(gem.mesh); gem.mesh.geometry.dispose(); gems.splice(i, 1);
+                    continue;
+                }
+                if (gem.mesh.position.z > 10) { scene.remove(gem.mesh); gem.mesh.geometry.dispose(); gems.splice(i, 1); }
+            }
+
+            for (let i = powerups.length - 1; i >= 0; i--) {
+                const pw = powerups[i];
+                pw.mesh.position.z += moveDistance;
+                pw.mesh.rotation.y += 4 * delta;
+
+                if (playerGroup.position.distanceTo(pw.mesh.position) < 1.2) {
+                    if (pw.type === 'shield') activeShield = true;
+                    if (pw.type === 'magnet') { 
+                        activeMagnet = true; 
+                        let baseMagnetDuration = 6.0;
+                        magnetTimer = baseMagnetDuration + (playerSkills.magnet_radius.level - 1) * 1.5;
+                    }
+                    AudioFX.playPowerup();
+                    createExplosionEffect(pw.mesh.position, pw.type === 'shield' ? 0x3b82f6 : 0x10b981);
+                    scene.remove(pw.mesh);
+                    pw.mesh.traverse(child => { if(child.geometry) child.geometry.dispose(); });
+                    powerups.splice(i, 1);
+                    continue;
+                }
+                if (pw.mesh.position.z > 10) {
+                    scene.remove(pw.mesh);
+                    pw.mesh.traverse(child => { if(child.geometry) child.geometry.dispose(); });
+                    powerups.splice(i, 1);
+                }
+            }
+            updateParticles(delta);
+        }
+
+        function updatePowerupHUD() {
+            const container = document.getElementById('active-powerups');
+            container.innerHTML = '';
+            
+            if (activeMagnet || currentSkinId === 'crystal_ball' || currentSkinId === 'day7_exclusive_ball') {
+                let textVal = (currentSkinId === 'crystal_ball' || currentSkinId === 'day7_exclusive_ball') ? 'MAX' : `${Math.ceil(magnetTimer)}s`;
+                container.innerHTML += `<div class="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-2 border-emerald-500/30">
+                    <i class="fa-solid fa-magnet text-emerald-400 text-base sm:text-lg"></i>
+                    <div>
+                        <div class="text-[9px] text-gray-400 font-semibold" data-i18n="magnet_timer">مغناطيس</div>
+                        <div class="text-sm sm:text-base font-black text-emerald-300">${textVal}</div>
+                    </div>
+                </div>`;
+            }
+
+            if (activeShield) {
+                container.innerHTML += `<div class="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-2 border-blue-500/30">
+                    <i class="fa-solid fa-shield-halved text-blue-400 text-base sm:text-lg"></i>
+                    <div>
+                        <div class="text-[9px] text-gray-400 font-semibold" data-i18n="active_shield">درع</div>
+                        <div class="text-sm sm:text-base font-black text-blue-300">ON</div>
+                    </div>
+                </div>`;
+            }
+        }
+
+        function startGame() {
+            AudioFX.init();
+            score = 0; 
+            sessionGems = 0; 
+            currentLane = 1; 
+            gameSpeed = INITIAL_SPEED; 
+            isGameRunning = true;
+            isPaused = false;
+            
+            let hasPlasmaShield = (currentSkinId === 'plasma_ball' || currentSkinId === 'legendary_ball' || currentSkinId === 'day7_exclusive_ball');
+            activeShield = hasPlasmaShield || (playerSkills.shield_duration.level > 1);
+            activeMagnet = false;
+
+            updateAllMissionsProgress(0, 0, true);
+
+            playerGroup.position.set(LANES[currentLane], 0, 0);
+            obstacles.forEach(o => scene.remove(o.mesh));
+            gems.forEach(g => scene.remove(g.mesh));
+            powerups.forEach(p => { scene.remove(p.mesh); p.mesh.traverse(child => { if(child.geometry) child.geometry.dispose(); }); });
+            obstacles = []; gems = []; powerups = [];
+
+            document.getElementById('hud-gems').textContent = sessionGems;
+            document.getElementById('start-gems-display').textContent = totalOwnedGems;
+            
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('store-screen').classList.add('hidden');
+            document.getElementById('skills-screen').classList.add('hidden');
+            document.getElementById('missions-screen').classList.add('hidden');
+            document.getElementById('leaderboard-screen').classList.add('hidden');
+            document.getElementById('settings-screen').classList.add('hidden');
+            document.getElementById('daily-reward-screen').classList.add('hidden');
+            document.getElementById('profile-screen').classList.add('hidden');
+            document.getElementById('map-selection-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('pause-screen').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+        }
+
+        function togglePause() {
+            if (!isGameRunning) return;
+            isPaused = !isPaused;
+            const pauseScreen = document.getElementById('pause-screen');
+            if (isPaused) {
+                pauseScreen.classList.remove('hidden');
+            } else {
+                pauseScreen.classList.add('hidden');
+                clock.getDelta();
+            }
+        }
+
+        function returnToHome() {
+            isGameRunning = false;
+            isPaused = false;
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('store-screen').classList.add('hidden');
+            document.getElementById('skills-screen').classList.add('hidden');
+            document.getElementById('missions-screen').classList.add('hidden');
+            document.getElementById('leaderboard-screen').classList.add('hidden');
+            document.getElementById('settings-screen').classList.add('hidden');
+            document.getElementById('daily-reward-screen').classList.add('hidden');
+            document.getElementById('profile-screen').classList.add('hidden');
+            document.getElementById('map-selection-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('pause-screen').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+            renderShop(); renderMissions(); renderSkills(); renderDailyRewards(); updateProfileUI(); updateMapDisplayLabel();
+            document.getElementById('start-gems-display').textContent = totalOwnedGems;
+        }
+
+        function handleCrash() {
+            isGameRunning = false;
+            isPaused = false;
+            AudioFX.playCrash();
+            createExplosionEffect(playerGroup.position, 0xef4444);
+
+            totalOwnedGems += sessionGems;
+            localStorage.setItem('runner_total_gems', totalOwnedGems);
+            document.getElementById('start-gems-display').textContent = totalOwnedGems;
+
+            let isNewHigh = false;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('runner_3d_highscore', highScore);
+                isNewHigh = true;
+            }
+
+            document.getElementById('final-score').textContent = score;
+            document.getElementById('final-gems').textContent = sessionGems;
+
+            if (isNewHigh && score > 100) {
+                document.getElementById('score-submit-box').classList.remove('hidden');
+            } else {
+                document.getElementById('score-submit-box').classList.add('hidden');
+            }
+
+            setTimeout(() => {
+                document.getElementById('hud').classList.add('hidden');
+                document.getElementById('pause-screen').classList.add('hidden');
+                document.getElementById('game-over-screen').classList.remove('hidden');
+                renderShop(); renderMissions(); renderSkills(); renderDailyRewards(); updateProfileUI(); updateMapDisplayLabel();
+            }, 600);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updateGame(clock.getDelta());
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function() {
+            initScene();
+            setupControls();
+            document.getElementById('start-highscore').textContent = highScore;
+            document.getElementById('start-gems-display').textContent = totalOwnedGems;
+            
+            initSettingsUI();
+
+            document.getElementById('start-btn').addEventListener('click', startGame);
+            document.getElementById('restart-btn').addEventListener('click', startGame);
+            document.getElementById('pause-restart-btn').addEventListener('click', startGame);
+            
+            document.getElementById('hud-pause-btn').addEventListener('click', togglePause);
+            document.getElementById('resume-btn').addEventListener('click', togglePause);
+
+            document.getElementById('pause-home-btn').addEventListener('click', returnToHome);
+            document.getElementById('game-over-screen').querySelector('button[title="الرئيسية"]')?.addEventListener('click', returnToHome);
+            document.getElementById('gameover-home-btn')?.addEventListener('click', returnToHome);
+
+            document.getElementById('open-daily-reward-btn').addEventListener('click', () => { renderDailyRewards(); document.getElementById('daily-reward-screen').classList.remove('hidden'); });
+            document.getElementById('close-daily-btn').addEventListener('click', () => { document.getElementById('daily-reward-screen').classList.add('hidden'); });
+
+            document.getElementById('open-skills-btn').addEventListener('click', () => { renderSkills(); document.getElementById('skills-screen').classList.remove('hidden'); });
+            document.getElementById('close-skills-btn').addEventListener('click', () => { document.getElementById('skills-screen').classList.add('hidden'); });
+
+            document.getElementById('open-shop-btn').addEventListener('click', () => { renderShop(); document.getElementById('store-screen').classList.remove('hidden'); });
+            document.getElementById('close-shop-btn').addEventListener('click', () => { document.getElementById('store-screen').classList.add('hidden'); });
+
+            document.getElementById('open-missions-btn').addEventListener('click', () => { renderMissions(); document.getElementById('missions-screen').classList.remove('hidden'); });
+            document.getElementById('close-missions-btn').addEventListener('click', () => { document.getElementById('missions-screen').classList.add('hidden'); });
+
+            document.getElementById('open-leaderboard-btn').addEventListener('click', () => { fetchLeaderboard(); document.getElementById('leaderboard-screen').classList.remove('hidden'); });
+            document.getElementById('close-leaderboard-btn').addEventListener('click', () => { document.getElementById('leaderboard-screen').classList.add('hidden'); });
+
+            document.getElementById('open-settings-btn').addEventListener('click', () => { document.getElementById('settings-screen').classList.remove('hidden'); });
+            document.getElementById('close-settings-btn').addEventListener('click', () => { document.getElementById('settings-screen').classList.add('hidden'); });
+
+            animate();
+        };
+    </script>
+</body>
+</html>
